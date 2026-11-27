@@ -1,4 +1,4 @@
-StreamRaid(仮)
+StreamRaid
 配信者と視聴者で潜るダンジョン RPG
 
 ■ 起動
