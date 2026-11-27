@@ -14,7 +14,8 @@ public partial class Main : Node3D
     public enum Phase { Lobby, Explore, Boss, Result }
 
     public readonly List<Unit> Units = new();
-    public readonly Settings Cfg = new();
+    public Settings Cfg { get; private set; }
+    public bool InputBlocked => _settings != null && _settings.Open;
     public Player Player { get; private set; }
     public Hud Hud { get; private set; }
     public Node3D Level { get; private set; }
@@ -27,6 +28,9 @@ public partial class Main : Node3D
     Node3D _actors;
     CameraRig _cam;
     TestChat _chat;
+    ChatHub _hub;
+    SettingsPanel _settings;
+    bool _demo;
     Viewers _viewers;
     readonly RandomNumberGenerator _rng = new();
 
@@ -52,7 +56,16 @@ public partial class Main : Node3D
     public override void _Ready()
     {
         I = this;
-        bool demo = OS.GetCmdlineUserArgs().Contains("--demo");
+        if (OS.GetCmdlineUserArgs().Contains("--chattest"))
+        {
+            // 開発用: コメント取得だけを確認する
+            AddChild(new ChatTest());
+            SetProcess(false);
+            Hud = null;
+            return;
+        }
+        bool demo = _demo = OS.GetCmdlineUserArgs().Contains("--demo");
+        Cfg = demo ? new Settings() : Settings.Load();
         if (demo) { Cfg.LobbySeconds = 5; Cfg.FloorCount = 2; Seed(7); }
         else _rng.Randomize();
         Inputs.Setup();
@@ -67,13 +80,38 @@ public partial class Main : Node3D
         AddChild(_cam);
         Hud = new Hud();
         AddChild(Hud);
-        _viewers = new Viewers(demo ? "demo" : "test");
+        _viewers = new Viewers(demo ? "demo" : Cfg.ChannelKey);
         _chat = new TestChat();
         AddChild(_chat);
         _chat.Message += OnChat;
+        _hub = new ChatHub();
+        AddChild(_hub);
+        _hub.Message += OnChat;
+        _settings = new SettingsPanel();
+        _settings.Setup(Cfg, _hub);
+        AddChild(_settings);
+        _settings.Applied += OnSettingsApplied;
         if (demo) AddChild(new DemoBot { Chat = _chat });
+        else
+        {
+            _hub.Apply(Cfg);
+            // まだ接続先が無ければ最初に設定画面を出す
+            if (!Cfg.HasConnection) CallDeferred(nameof(OpenSettings));
+        }
 
         EnterLobby();
+    }
+
+    void OpenSettings() => _settings.Show(true);
+
+    void OnSettingsApplied(Settings s)
+    {
+        _hub.Apply(s);
+        if (Player != null && IsInstanceValid(Player)) Player.Rename(s.StreamerName);
+        // 視聴者の記録は接続先(チャンネル)ごとに分ける
+        _viewers.Save();
+        _viewers = new Viewers(s.ChannelKey);
+        Hud.Log("接続設定を保存しました", new Color("8ff0ff"));
     }
 
     void Seed(ulong s)
@@ -196,7 +234,17 @@ public partial class Main : Node3D
             if (up > 0) ups.Add($"{name} Lv{v.Level}");
         }
         if (ups.Count > 0)
-            lines.Add(("レベルアップ!  " + string.Join("  ", ups.Take(8)) + (ups.Count > 8 ? $" ほか{ups.Count - 8}人" : ""), new Color("8dff9a"), 28));
+        {
+            // 名前の途中で折り返さないよう、1 行 3 人ずつ並べる
+            lines.Add(("レベルアップ!", new Color("8dff9a"), 30));
+            var shown = ups.Take(6).ToList();
+            for (int i = 0; i < shown.Count; i += 3)
+            {
+                var row = string.Join("   ", shown.Skip(i).Take(3));
+                if (i + 3 >= shown.Count && ups.Count > 6) row += $"   ほか {ups.Count - 6} 人";
+                lines.Add((row, new Color("8dff9a"), 26));
+            }
+        }
         lines.Add(($"参加 {_participants.Union(_raiders).Count()} 人", new Color("c9c3e6"), 26));
         lines.Add(("Enter でもう一度", new Color("c9c3e6"), 24));
         _viewers.Save();
@@ -206,6 +254,7 @@ public partial class Main : Node3D
 
     public override void _Process(double delta)
     {
+        if (Hud == null) return;
         Now += delta;
         float dt = (float)delta;
         switch (State)
@@ -242,11 +291,12 @@ public partial class Main : Node3D
                 break;
         }
         UpdatePartyText();
+        Hud.SetStatus(_demo ? "デモ" : _hub.StatusLine() + "    F10 接続設定");
     }
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (!e.IsActionPressed("start")) return;
+        if (Hud == null || !e.IsActionPressed("start")) return;
         if (State == Phase.Lobby) StartRun();
         else if (State == Phase.Result && _resultAt < 0) EnterLobby();
     }
@@ -255,9 +305,11 @@ public partial class Main : Node3D
 
     void OnChat(ChatMsg m)
     {
-        var text = m.Text.Trim();
-        if (TryCommand(text, "#参加", "!join", out var arg)) { Join(m.User, ParseJob(arg)); return; }
-        if (TryCommand(text, "#召喚", "!summon", out arg)) { Summon(m.User, ParseKind(arg)); return; }
+        var text = (m.Text ?? "").Trim();
+        if (string.IsNullOrEmpty(m.User)) return;
+        // 配信者本人のコメントは仲間・召喚にしない(配信者はプレイヤーなので)
+        if (TryCommand(text, "#参加", "!join", out var arg)) { if (!m.Owner) Join(m.User, ParseJob(arg)); return; }
+        if (TryCommand(text, "#召喚", "!summon", out arg)) { if (!m.Owner) Summon(m.User, ParseKind(arg)); return; }
         if (text is "技" or "#技" or "!skill") { Skill(m.User); if (State != Phase.Boss) return; }
         if (State == Phase.Boss) RaidHit(m);
     }

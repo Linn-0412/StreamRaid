@@ -6,7 +6,7 @@ namespace StreamRaid;
 /// <summary>画面の文字(状態・ログ・パーティー・ボスの HP・結果発表)。</summary>
 public partial class Hud : CanvasLayer
 {
-    Label _top, _hint, _banner, _party, _help, _bossName;
+    Label _top, _status, _hint, _banner, _party, _help, _bossName;
     VBoxContainer _log;
     ProgressBar _boss;
     PanelContainer _result;
@@ -30,6 +30,9 @@ public partial class Hud : CanvasLayer
 
         _top = new Label { LabelSettings = Ls(34, Colors.White, 10), Position = new Vector2(28, 20) };
         root.AddChild(_top);
+
+        _status = new Label { LabelSettings = Ls(22, new Color("bff6ff"), 6), Position = new Vector2(30, 66) };
+        root.AddChild(_status);
 
         _hint = new Label { LabelSettings = Ls(30, new Color("ffe9a8"), 10), HorizontalAlignment = HorizontalAlignment.Center };
         _hint.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
@@ -76,6 +79,8 @@ public partial class Hud : CanvasLayer
 
         _result = new PanelContainer { Visible = false };
         _result.SetAnchorsPreset(Control.LayoutPreset.Center);
+        _result.GrowHorizontal = Control.GrowDirection.Both;
+        _result.GrowVertical = Control.GrowDirection.Both;
         _result.OffsetLeft = -520; _result.OffsetRight = 520; _result.OffsetTop = -330; _result.OffsetBottom = 330;
         _result.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
@@ -91,6 +96,7 @@ public partial class Hud : CanvasLayer
     }
 
     public void SetTop(string text) => _top.Text = text;
+    public void SetStatus(string text) => _status.Text = text;
     public void SetHint(string text) => _hint.Text = text;
 
     public void Banner(string text, float seconds, Color? color = null)
@@ -137,7 +143,14 @@ public partial class Hud : CanvasLayer
         if (title == null) return;
         _resultBox.AddChild(new Label { Text = title, LabelSettings = Ls(64, new Color("ffd34d"), 14), HorizontalAlignment = HorizontalAlignment.Center });
         foreach (var (text, color, size) in lines)
-            _resultBox.AddChild(new Label { Text = text, LabelSettings = Ls(size, color, 8), HorizontalAlignment = HorizontalAlignment.Center });
+            _resultBox.AddChild(new Label
+            {
+                Text = text,
+                LabelSettings = Ls(size, color, 8),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                CustomMinimumSize = new Vector2(960, 0),
+            });
         _result.Scale = Vector2.One * 0.8f;
         _result.PivotOffset = _result.Size / 2;
         CreateTween().TweenProperty(_result, "scale", Vector2.One, 0.25).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);

@@ -13,6 +13,51 @@ public class Settings
     public float RaidInterval { get; set; } = 1.0f;
     /// <summary>1 人が敵を召喚できる間隔(秒)。</summary>
     public float SummonCooldown { get; set; } = 20f;
+
+    /// <summary>"channel"(@ハンドルから配信を探す)か "url"(配信の URL を直接指定。限定公開用)。</summary>
+    public string YouTubeMode { get; set; } = "channel";
+    public string YouTubeChannel { get; set; } = "";
+    public string YouTubeUrl { get; set; } = "";
+    public string TwitchChannel { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasConnection =>
+        !string.IsNullOrWhiteSpace(YouTubeMode == "url" ? YouTubeUrl : YouTubeChannel) || !string.IsNullOrWhiteSpace(TwitchChannel);
+
+    /// <summary>視聴者の記録を分ける名前(接続先ごと)。</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string ChannelKey
+    {
+        get
+        {
+            var k = !string.IsNullOrWhiteSpace(YouTubeChannel) ? YouTubeChannel : TwitchChannel;
+            k = string.IsNullOrWhiteSpace(k) ? "test" : k.Trim().TrimStart('@', '#');
+            foreach (var c in System.IO.Path.GetInvalidFileNameChars()) k = k.Replace(c, '_');
+            return k.Replace('/', '_').Replace(':', '_');
+        }
+    }
+
+    const string Path = "user://settings.json";
+
+    public static Settings Load()
+    {
+        try
+        {
+            if (FileAccess.FileExists(Path))
+            {
+                using var f = FileAccess.Open(Path, FileAccess.ModeFlags.Read);
+                return System.Text.Json.JsonSerializer.Deserialize<Settings>(f.GetAsText()) ?? new Settings();
+            }
+        }
+        catch { }
+        return new Settings();
+    }
+
+    public void Save()
+    {
+        using var f = FileAccess.Open(Path, FileAccess.ModeFlags.Write);
+        f?.StoreString(System.Text.Json.JsonSerializer.Serialize(this, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+    }
 }
 
 /// <summary>キー・マウス・ゲームパッドの割り当て。</summary>

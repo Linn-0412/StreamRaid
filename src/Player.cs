@@ -40,10 +40,11 @@ public partial class Player : Unit
         }
         else
         {
-            var v = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
+            bool blocked = Main.I.InputBlocked; // 設定画面で文字を打っている間は動かない
+            var v = blocked ? Vector2.Zero : Input.GetVector("move_left", "move_right", "move_forward", "move_back");
             move = new Vector3(v.X, 0, v.Y);
-            atk = Input.IsActionJustPressed("attack");
-            dodge = Input.IsActionJustPressed("dodge");
+            atk = !blocked && Input.IsActionJustPressed("attack");
+            dodge = !blocked && Input.IsActionJustPressed("dodge");
         }
         if (move.LengthSquared() > 1) move = move.Normalized();
 
@@ -84,6 +85,12 @@ public partial class Player : Unit
             if (d < 1.9f && (d < 0.5f || _facing.Dot(to.Normalized()) > 0.15f))
                 u.Damage(26 + (float)GD.RandRange(0, 6), null);
         }
+    }
+
+    public void Rename(string name)
+    {
+        DisplayName = name;
+        if (NameLabel != null) NameLabel.Text = name;
     }
 
     public void Revive(float ratio)

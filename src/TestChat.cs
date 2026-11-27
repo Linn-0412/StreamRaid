@@ -4,7 +4,8 @@ using Godot;
 namespace StreamRaid;
 
 /// <summary>コメント 1 件。YouTube / Twitch の取得部分(次の段階)もこの形で渡す。</summary>
-public record ChatMsg(string User, string Text, string Platform = "test", bool Member = false, int PaidYen = 0, string PaidText = null);
+public record ChatMsg(string User, string Text, string Platform = "test", bool Member = false, int PaidYen = 0, string PaidText = null,
+                      string UserId = null, bool Moderator = false, bool Owner = false);
 
 /// <summary>キーボードでコメントを出すテスト用(配信につなぐ前の確認と、デモ録画に使う)。</summary>
 public partial class TestChat : Node
