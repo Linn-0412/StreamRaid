@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 
@@ -33,6 +34,12 @@ public partial class SettingsPanel : CanvasLayer
     SpinBox _raidInterval, _summonCd;
     CheckButton _allowSummon, _paidSpecial, _membersOnly;
     TextEdit _blocked;
+    // 操作
+    readonly System.Collections.Generic.Dictionary<string, string> _keys = new(), _pads = new();
+    readonly System.Collections.Generic.Dictionary<string, Button> _keyButtons = new(), _padButtons = new();
+    string _captureAction;
+    bool _capturePad;
+    double _captureStarted;
     // その他
     CheckButton _testKeys;
     OptionButton _logCorner;
@@ -88,6 +95,7 @@ public partial class SettingsPanel : CanvasLayer
         _tabs.AddChild(ConnectionTab());
         _tabs.AddChild(GameTab());
         _tabs.AddChild(CommentTab());
+        _tabs.AddChild(ControlsTab());
         _tabs.AddChild(OtherTab());
 
         var row = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End };
@@ -189,6 +197,99 @@ public partial class SettingsPanel : CanvasLayer
         return root;
     }
 
+    Control ControlsTab()
+    {
+        var box = Page("操作", out var root);
+        box.AddChild(Note("ボタンを押してから、割り当てたいキー(またはゲームパッドのボタン)を押してください。Esc でやめます。ほかの操作と同じキーにすると、入れ替わります。"));
+        var head = new HBoxContainer();
+        head.AddThemeConstantOverride("separation", 16);
+        head.AddChild(new Label { Text = "", CustomMinimumSize = new Vector2(300, 0) });
+        head.AddChild(new Label { Text = "キーボード・マウス", CustomMinimumSize = new Vector2(280, 0) });
+        head.AddChild(new Label { Text = "ゲームパッド", CustomMinimumSize = new Vector2(280, 0) });
+        box.AddChild(head);
+        foreach (var a in Inputs.Actions)
+        {
+            var row = new HBoxContainer();
+            row.AddThemeConstantOverride("separation", 16);
+            row.AddChild(new Label { Text = a.Name, CustomMinimumSize = new Vector2(300, 0), VerticalAlignment = VerticalAlignment.Center });
+            var kb = Button("");
+            kb.CustomMinimumSize = new Vector2(280, 46);
+            kb.Pressed += () => BeginCapture(a.Id, false);
+            var pb = Button("");
+            pb.CustomMinimumSize = new Vector2(280, 46);
+            pb.Pressed += () => BeginCapture(a.Id, true);
+            // 押せるボタンだと分かるように枠を付ける
+            foreach (var b in new[] { kb, pb })
+            {
+                b.AddThemeStyleboxOverride("normal", new StyleBoxFlat { BgColor = new Color(1, 1, 1, 0.06f), BorderColor = new Color("8ff0ff"), BorderWidthBottom = 2, BorderWidthTop = 2, BorderWidthLeft = 2, BorderWidthRight = 2, CornerRadiusTopLeft = 8, CornerRadiusTopRight = 8, CornerRadiusBottomLeft = 8, CornerRadiusBottomRight = 8 });
+                b.AddThemeStyleboxOverride("hover", new StyleBoxFlat { BgColor = new Color(0.56f, 0.94f, 1f, 0.18f), BorderColor = new Color("bff6ff"), BorderWidthBottom = 2, BorderWidthTop = 2, BorderWidthLeft = 2, BorderWidthRight = 2, CornerRadiusTopLeft = 8, CornerRadiusTopRight = 8, CornerRadiusBottomLeft = 8, CornerRadiusBottomRight = 8 });
+            }
+            _keyButtons[a.Id] = kb;
+            _padButtons[a.Id] = pb;
+            row.AddChild(kb);
+            row.AddChild(pb);
+            box.AddChild(row);
+        }
+        box.AddChild(Note("いつでも使える操作: 矢印キーと左スティックで移動、左クリックで攻撃、右クリックで回避。F1〜F6(テスト)・F8・F10 は変えられません。"));
+        var reset = Button("最初の割り当てに戻す");
+        reset.CustomMinimumSize = new Vector2(320, 48);
+        reset.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
+        reset.Pressed += () =>
+        {
+            foreach (var a in Inputs.Actions) { _keys[a.Id] = a.Key; _pads[a.Id] = a.Pad; }
+            RefreshBindings();
+        };
+        box.AddChild(reset);
+        return root;
+    }
+
+    void BeginCapture(string action, bool pad)
+    {
+        _captureAction = action;
+        _capturePad = pad;
+        _captureStarted = Time.GetTicksMsec();
+        RefreshBindings();
+    }
+
+    void RefreshBindings()
+    {
+        foreach (var a in Inputs.Actions)
+        {
+            bool k = _captureAction == a.Id && !_capturePad, p = _captureAction == a.Id && _capturePad;
+            _keyButtons[a.Id].Text = k ? "キーを押してください…" : Inputs.Name(_keys.GetValueOrDefault(a.Id, a.Key));
+            _padButtons[a.Id].Text = p ? "ボタンを押してください…" : Inputs.Name(_pads.GetValueOrDefault(a.Id, a.Pad));
+        }
+    }
+
+    /// <summary>割り当て変更中は、押された入力をそのまま受け取る(ほかの操作に流さない)。</summary>
+    public override void _Input(InputEvent e)
+    {
+        if (_captureAction == null || !_panel.Visible) return;
+        // ボタンを押したクリックそのものは拾わない
+        if (Time.GetTicksMsec() - _captureStarted < 200) return;
+        if (e is InputEventKey { Pressed: true, Keycode: Key.Escape })
+        {
+            _captureAction = null;
+            RefreshBindings();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+        var code = Inputs.FromEvent(e, _capturePad);
+        if (code == null) return;
+        var map = _capturePad ? _pads : _keys;
+        // 同じ入力を使っているほかの操作とは入れ替える
+        var old = map.GetValueOrDefault(_captureAction, "");
+        foreach (var a in Inputs.Actions)
+        {
+            var cur = map.GetValueOrDefault(a.Id, _capturePad ? a.Pad : a.Key);
+            if (a.Id != _captureAction && cur == code) map[a.Id] = old;
+        }
+        map[_captureAction] = code;
+        _captureAction = null;
+        RefreshBindings();
+        GetViewport().SetInputAsHandled();
+    }
+
     Control OtherTab()
     {
         var box = Page("その他", out var root);
@@ -286,6 +387,13 @@ public partial class SettingsPanel : CanvasLayer
         _blocked.Text = string.Join("\n", _s.BlockedUsers ?? Array.Empty<string>());
 
         _testKeys.ButtonPressed = _s.ShowTestKeys;
+        foreach (var a in Inputs.Actions)
+        {
+            _keys[a.Id] = Inputs.KeyOf(_s, a);
+            _pads[a.Id] = Inputs.PadOf(_s, a);
+        }
+        _captureAction = null;
+        RefreshBindings();
         _logCorner.Selected = _s.LogOnRight ? 1 : 0;
         _sfx.Value = _s.SfxVolume;
     }
@@ -312,6 +420,8 @@ public partial class SettingsPanel : CanvasLayer
         _s.BlockedUsers = _blocked.Text.Split('\n').Select(x => x.Trim()).Where(x => x.Length > 0).Distinct().ToArray();
 
         _s.ShowTestKeys = _testKeys.ButtonPressed;
+        _s.KeyBindings = new System.Collections.Generic.Dictionary<string, string>(_keys);
+        _s.PadBindings = new System.Collections.Generic.Dictionary<string, string>(_pads);
         _s.LogOnRight = _logCorner.Selected == 1;
         _s.SfxVolume = (int)_sfx.Value;
         _s.Save();
@@ -358,7 +468,7 @@ public partial class SettingsPanel : CanvasLayer
             Show(!_panel.Visible);
             GetViewport().SetInputAsHandled();
         }
-        else if (_panel.Visible && e is InputEventKey { Pressed: true, Keycode: Key.Escape })
+        else if (_panel.Visible && _captureAction == null && e is InputEventKey { Pressed: true, Keycode: Key.Escape })
         {
             Show(false);
             GetViewport().SetInputAsHandled();

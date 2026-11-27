@@ -48,7 +48,7 @@ public partial class DialogueBox : CanvasLayer
             LabelSettings = new LabelSettings { Font = Toon.Font, FontSize = 36, FontColor = Colors.White, OutlineSize = 8, OutlineColor = new Color(0.05f, 0.03f, 0.08f), LineSpacing = 6 },
         };
         box.AddChild(_text);
-        _next = new Label { Text = "▼ Enter", HorizontalAlignment = HorizontalAlignment.Right, LabelSettings = new LabelSettings { Font = Toon.Font, FontSize = 22, FontColor = new Color("c9c3e6") } };
+        _next = new Label { Text = "▼", HorizontalAlignment = HorizontalAlignment.Right, LabelSettings = new LabelSettings { Font = Toon.Font, FontSize = 22, FontColor = new Color("c9c3e6") } };
         box.AddChild(_next);
     }
 
@@ -102,7 +102,8 @@ public partial class DialogueBox : CanvasLayer
     public override void _UnhandledInput(InputEvent e)
     {
         if (!_panel.Visible) return;
-        bool press = e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Enter or Key.KpEnter }
+        bool press = (e.IsActionPressed("start") && !e.IsEcho())
+                     || e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Enter or Key.KpEnter }
                      || e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
                      || e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.A };
         if (!press) return;

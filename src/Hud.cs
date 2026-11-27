@@ -71,7 +71,7 @@ public partial class Hud : CanvasLayer
         {
             LabelSettings = Ls(20, new Color("c9c3e6"), 6),
             HorizontalAlignment = HorizontalAlignment.Right,
-            Text = "テスト: F1 参加 / F2 召喚 / F3 コメント / F4 投げ銭 / F5 技 / F6 コメント 20 件   操作: WASD 移動・J 攻撃・Space 回避",
+            Text = "テスト: F1 参加 / F2 召喚 / F3 コメント / F4 投げ銭 / F5 技 / F6 コメント 20 件",
         };
         _help.SetAnchorsPreset(Control.LayoutPreset.TopRight);
         _help.OffsetLeft = -1400; _help.OffsetRight = -28; _help.OffsetTop = 24; _help.OffsetBottom = 60;
@@ -115,6 +115,10 @@ public partial class Hud : CanvasLayer
 
     public void SetTop(string text) => _top.Text = text;
     public void ShowTestKeys(bool show) => _help.Visible = show;
+
+    /// <summary>右上の説明に操作(割り当て)を足す。</summary>
+    public void SetControls(string text) =>
+        _help.Text = "テスト: F1 参加 / F2 召喚 / F3 コメント / F4 投げ銭 / F5 技 / F6 コメント 20 件   " + text;
     public void ShowCredit(bool show) => _credit.Visible = show;
 
     /// <summary>バトルログを左下 / 右下のどちらに出すか(立ち絵のない方へ)。</summary>

@@ -94,7 +94,7 @@ public partial class Main : Node3D
         else _rng.Randomize();
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a.StartsWith("--start-floor=") && int.TryParse(a["--start-floor=".Length..], out var sf)) _devStart = sf; // 開発用
-        Inputs.Setup();
+        Inputs.Apply(Cfg);
         Toon.Init();
         SetupWorld();
 
@@ -139,6 +139,7 @@ public partial class Main : Node3D
         }
 
         Hud.ShowTestKeys(Cfg.ShowTestKeys);
+        Hud.SetControls(ControlsText());
         Hud.SetLogCorner(Cfg.LogOnRight);
         Sfx.Init(this);
         Sfx.Volume = Cfg.SfxVolume;
@@ -241,6 +242,8 @@ public partial class Main : Node3D
     {
         _hub.Apply(s);
         Hud.ShowTestKeys(s.ShowTestKeys);
+        Inputs.Apply(s);
+        Hud.SetControls(ControlsText());
         Hud.SetLogCorner(s.LogOnRight);
         Sfx.Volume = s.SfxVolume;
         if (Player != null && IsInstanceValid(Player)) Player.Rename(s.StreamerName);
@@ -504,7 +507,8 @@ public partial class Main : Node3D
             case Phase.Lobby:
                 // 配信者が接続設定を開いている間は受付の残り時間を止める
                 if (!InputBlocked) _lobbyLeft -= dt;
-                string go = ContinueFloor > 1 ? $"Enter: 続きから({ContinueFloor} 階)  F8: 1 階から" : "Enter で出発";
+                string enter = Inputs.KeyName(Cfg, "start");
+                string go = ContinueFloor > 1 ? $"{enter}: 続きから({ContinueFloor} 階)  F8: 1 階から" : $"{enter} で出発";
                 Hud.SetTop(InputBlocked
                     ? $"参加受付中  あと {Mathf.CeilToInt(Mathf.Max(0, _lobbyLeft))} 秒(止まっています)"
                     : $"参加受付中  あと {Mathf.CeilToInt(Mathf.Max(0, _lobbyLeft))} 秒   {go}");
@@ -796,6 +800,13 @@ public partial class Main : Node3D
     }
 
     public void Shake(float amount) => _cam.Shake(amount);
+
+    /// <summary>画面右上に出す操作の説明(割り当てに合わせる)。</summary>
+    string ControlsText()
+    {
+        string K(string id) => Inputs.KeyName(Cfg, id);
+        return $"操作: {K("move_forward")}{K("move_left")}{K("move_back")}{K("move_right")} 移動・{K("attack")} 攻撃・{K("dodge")} 回避";
+    }
 
     /// <summary>
     /// 配信画面の左下・右下(VTuber の立ち絵を置く場所)に映る位置なら true。

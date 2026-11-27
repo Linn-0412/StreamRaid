@@ -37,6 +37,10 @@ public class Settings
     /// <summary>効果音の音量(0〜100)。</summary>
     public int SfxVolume { get; set; } = 70;
 
+    // ---- 操作(Inputs.Actions の Id → 割り当て。無い操作は最初の割り当て)
+    public System.Collections.Generic.Dictionary<string, string> KeyBindings { get; set; } = new();
+    public System.Collections.Generic.Dictionary<string, string> PadBindings { get; set; } = new();
+
     /// <summary>難しさに応じた敵の強さ(HP・攻撃力の倍率)。</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public float EnemyScale => Difficulty switch { 0 => 0.7f, 2 => 1.35f, _ => 1f };
@@ -97,32 +101,5 @@ public class Settings
     {
         using var f = FileAccess.Open(Path, FileAccess.ModeFlags.Write);
         f?.StoreString(System.Text.Json.JsonSerializer.Serialize(this, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
-    }
-}
-
-/// <summary>キー・マウス・ゲームパッドの割り当て。</summary>
-public static class Inputs
-{
-    public static void Setup()
-    {
-        Add("move_left", new InputEventKey { PhysicalKeycode = Key.A }, new InputEventKey { PhysicalKeycode = Key.Left },
-            new InputEventJoypadMotion { Axis = JoyAxis.LeftX, AxisValue = -1 });
-        Add("move_right", new InputEventKey { PhysicalKeycode = Key.D }, new InputEventKey { PhysicalKeycode = Key.Right },
-            new InputEventJoypadMotion { Axis = JoyAxis.LeftX, AxisValue = 1 });
-        Add("move_forward", new InputEventKey { PhysicalKeycode = Key.W }, new InputEventKey { PhysicalKeycode = Key.Up },
-            new InputEventJoypadMotion { Axis = JoyAxis.LeftY, AxisValue = -1 });
-        Add("move_back", new InputEventKey { PhysicalKeycode = Key.S }, new InputEventKey { PhysicalKeycode = Key.Down },
-            new InputEventJoypadMotion { Axis = JoyAxis.LeftY, AxisValue = 1 });
-        Add("attack", new InputEventKey { PhysicalKeycode = Key.J }, new InputEventMouseButton { ButtonIndex = MouseButton.Left },
-            new InputEventJoypadButton { ButtonIndex = JoyButton.X });
-        Add("dodge", new InputEventKey { PhysicalKeycode = Key.Space }, new InputEventKey { PhysicalKeycode = Key.K },
-            new InputEventMouseButton { ButtonIndex = MouseButton.Right }, new InputEventJoypadButton { ButtonIndex = JoyButton.A });
-        Add("start", new InputEventKey { PhysicalKeycode = Key.Enter }, new InputEventJoypadButton { ButtonIndex = JoyButton.Start });
-    }
-
-    static void Add(string name, params InputEvent[] events)
-    {
-        if (!InputMap.HasAction(name)) InputMap.AddAction(name, 0.25f);
-        foreach (var e in events) InputMap.ActionAddEvent(name, e);
     }
 }
