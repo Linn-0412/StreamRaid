@@ -96,6 +96,7 @@ public partial class Hud : CanvasLayer
     }
 
     public void SetTop(string text) => _top.Text = text;
+    public void ShowTestKeys(bool show) => _help.Visible = show;
     public void SetStatus(string text) => _status.Text = text;
     public void SetHint(string text) => _hint.Text = text;
 

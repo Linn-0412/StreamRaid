@@ -2,17 +2,47 @@ using Godot;
 
 namespace StreamRaid;
 
-/// <summary>配信者が変えられる設定(のちに設定画面から編集する)。</summary>
+/// <summary>配信者が変えられる設定(F10 の設定画面で編集し、user://settings.json に保存)。</summary>
 public class Settings
 {
     public string StreamerName { get; set; } = "配信者";
+
+    // ---- ゲーム
     public int FloorCount { get; set; } = 3;
     public int PartySize { get; set; } = 6;
     public float LobbySeconds { get; set; } = 60;
+    /// <summary>0 = やさしい / 1 = ふつう / 2 = むずかしい。</summary>
+    public int Difficulty { get; set; } = 1;
+
+    // ---- コメント
     /// <summary>ボス戦で 1 人が攻撃できる間隔(秒)。</summary>
     public float RaidInterval { get; set; } = 1.0f;
+    /// <summary>視聴者が敵を召喚できるか。</summary>
+    public bool AllowSummon { get; set; } = true;
     /// <summary>1 人が敵を召喚できる間隔(秒)。</summary>
     public float SummonCooldown { get; set; } = 20f;
+    /// <summary>投げ銭・Bits などをボスへの必殺技にするか。</summary>
+    public bool PaidSpecial { get; set; } = true;
+    /// <summary>仲間になれるのをメンバー(サブスク)・モデレーターだけにするか。</summary>
+    public bool MembersOnlyJoin { get; set; } = false;
+    /// <summary>コメントを無視する人(名前。大文字小文字は区別しない)。</summary>
+    public string[] BlockedUsers { get; set; } = System.Array.Empty<string>();
+
+    // ---- その他
+    /// <summary>画面右上のテスト用キーの説明を出すか。</summary>
+    public bool ShowTestKeys { get; set; } = true;
+
+    /// <summary>難しさに応じた敵の強さ(HP・攻撃力の倍率)。</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public float EnemyScale => Difficulty switch { 0 => 0.7f, 2 => 1.35f, _ => 1f };
+
+    public bool IsBlocked(string user)
+    {
+        if (string.IsNullOrEmpty(user) || BlockedUsers == null) return false;
+        foreach (var b in BlockedUsers)
+            if (string.Equals(b?.Trim().TrimStart('@'), user.Trim().TrimStart('@'), System.StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
 
     /// <summary>"channel"(@ハンドルから配信を探す)か "url"(配信の URL を直接指定。限定公開用)。</summary>
     public string YouTubeMode { get; set; } = "channel";

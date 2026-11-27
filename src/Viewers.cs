@@ -56,6 +56,13 @@ public class Viewers
         return ups;
     }
 
+    /// <summary>このチャンネルの記録をすべて消す。</summary>
+    public void Clear()
+    {
+        _d.Clear();
+        Save();
+    }
+
     public void Save()
     {
         using var f = FileAccess.Open(_path, FileAccess.ModeFlags.Write);

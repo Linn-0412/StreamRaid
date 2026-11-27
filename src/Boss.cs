@@ -91,6 +91,7 @@ public partial class Boss : Unit
 
     static void HitArea(Vector3 pos, float r, float dmg)
     {
+        dmg *= Main.I.Cfg.EnemyScale; // 難しさ
         foreach (var u in Main.I.Units.ToArray())
             if (u.Team == Team.Hero && !u.Dead && Flat(u.GlobalPosition - pos).Length() - u.Radius < r)
                 u.Damage(dmg, null);

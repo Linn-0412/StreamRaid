@@ -103,6 +103,11 @@ public partial class Main : Node3D
         _settings.Setup(Cfg, _hub);
         AddChild(_settings);
         _settings.Applied += OnSettingsApplied;
+        _settings.ResetViewers += () =>
+        {
+            _viewers.Clear();
+            Hud.Log("このチャンネルの視聴者の記録を消しました", new Color("8ff0ff"));
+        };
         // ダンジョン・ボス戦の途中で設定を開いたらゲームを一時停止する(参加受付中は受付時間だけ止める)
         _settings.Toggled += open => GetTree().Paused = open && State is Phase.Explore or Phase.Boss;
         if (demo) AddChild(new DemoBot { Chat = _chat });
@@ -113,6 +118,7 @@ public partial class Main : Node3D
             if (!Cfg.HasConnection) CallDeferred(nameof(OpenSettings));
         }
 
+        Hud.ShowTestKeys(Cfg.ShowTestKeys);
         EnterLobby();
     }
 
@@ -154,6 +160,7 @@ public partial class Main : Node3D
     void OnSettingsApplied(Settings s)
     {
         _hub.Apply(s);
+        Hud.ShowTestKeys(s.ShowTestKeys);
         if (Player != null && IsInstanceValid(Player)) Player.Rename(s.StreamerName);
         // アバターが変わったら配信者を作り直す(同じ場所・同じ HP で)
         if (Player != null && IsInstanceValid(Player) && (s.AvatarPath ?? "") != (_avatarCachePath ?? "") && _avatarOverride == null)
@@ -219,7 +226,7 @@ public partial class Main : Node3D
         _lobbyLeft = Cfg.LobbySeconds;
         Hud.ShowResult(null, null);
         Hud.Banner("参加受付中!", 2.5f);
-        Hud.SetHint("コメントで「#参加 戦士」「#参加 魔法使い」「#参加 僧侶」と書くと仲間になれます");
+        Hud.SetHint((Cfg.MembersOnlyJoin ? "メンバーの人は" : "") + "コメントで「#参加 戦士」「#参加 魔法使い」「#参加 僧侶」と書くと仲間になれます");
     }
 
     void StartRun()
@@ -243,7 +250,8 @@ public partial class Main : Node3D
         _waveLeft = total - first;
         _portal = null;
         Hud.Banner($"地下 {_floor} 階", 1.8f);
-        Hud.SetHint("「#召喚 スライム / ゴブリン / コウモリ」で敵を送れます。仲間は「技」でスキル");
+        Hud.SetHint(Cfg.AllowSummon ? "「#召喚 スライム / ゴブリン / コウモリ」で敵を送れます。仲間は「技」でスキル"
+                                    : "仲間は「技」とコメントするとスキルを使います");
     }
 
     void EnterBoss()
@@ -254,7 +262,7 @@ public partial class Main : Node3D
         _boss = new Boss();
         _actors.AddChild(_boss);
         _boss.GlobalPosition = new Vector3(0, 0, -5);
-        _boss.MaxHp = _boss.Hp = 1400 + 120 * _participants.Count;
+        _boss.MaxHp = _boss.Hp = (1400 + 120 * _participants.Count) * Cfg.EnemyScale;
         _boss.Died += _ => Finish(true);
         _cam.Offset = new Vector3(0, 15, 13);
         Hud.Banner($"{Boss.BossName} 出現!", 2.5f, new Color("ff8f8f"));
@@ -356,7 +364,7 @@ public partial class Main : Node3D
                 break;
         }
         UpdatePartyText();
-        Hud.SetStatus(_demo ? "デモ" : _hub.StatusLine() + "    F10 接続設定");
+        Hud.SetStatus(_demo ? "デモ" : _hub.StatusLine() + "    F10 設定");
     }
 
     public override void _UnhandledInput(InputEvent e)
@@ -371,9 +379,15 @@ public partial class Main : Node3D
     void OnChat(ChatMsg m)
     {
         var text = (m.Text ?? "").Trim();
-        if (string.IsNullOrEmpty(m.User)) return;
+        if (string.IsNullOrEmpty(m.User) || Cfg.IsBlocked(m.User)) return; // 無視する人(設定)
         // 配信者本人のコメントは仲間・召喚にしない(配信者はプレイヤーなので)
-        if (TryCommand(text, "#参加", "!join", out var arg)) { if (!m.Owner) Join(m.User, ParseJob(arg)); return; }
+        if (TryCommand(text, "#参加", "!join", out var arg))
+        {
+            // メンバー限定(設定)のときは、メンバー・モデレーターだけ仲間になれる
+            bool allowed = !Cfg.MembersOnlyJoin || m.Member || m.Moderator || m.Platform == "test";
+            if (!m.Owner && allowed) Join(m.User, ParseJob(arg));
+            return;
+        }
         if (TryCommand(text, "#召喚", "!summon", out arg)) { if (!m.Owner) Summon(m.User, ParseKind(arg)); return; }
         if (text is "技" or "#技" or "!skill") { Skill(m.User); if (State != Phase.Boss) return; }
         if (State == Phase.Boss) RaidHit(m);
@@ -433,7 +447,7 @@ public partial class Main : Node3D
 
     void Summon(string user, Kind kind)
     {
-        if (State != Phase.Explore) return;
+        if (State != Phase.Explore || !Cfg.AllowSummon) return;
         if (!OffCooldown(user, "summon", Cfg.SummonCooldown)) return;
         if (MonsterCount > 24) return;
         _participants.Add(user);
@@ -449,6 +463,7 @@ public partial class Main : Node3D
     void RaidHit(ChatMsg m)
     {
         if (_boss == null || !IsInstanceValid(_boss) || _boss.Dead) return;
+        if (!Cfg.PaidSpecial && m.PaidYen > 0) m = m with { PaidYen = 0, PaidText = null }; // 必殺技なし(設定)
         if (m.PaidYen <= 0 && !OffCooldown(m.User, "raid", Cfg.RaidInterval)) return;
         if (_raiders.Add(m.User) && _raiders.Count > _participants.Count) _boss.AddParticipant(60);
 
