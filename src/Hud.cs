@@ -35,7 +35,7 @@ public partial class Hud : CanvasLayer
         _status = new Label { LabelSettings = Ls(22, new Color("bff6ff"), 6), Position = new Vector2(30, 66) };
         root.AddChild(_status);
 
-        // 作者の表記(参加受付と結果発表のときだけ、右下に小さく)
+        // 作者の表記(参加受付のときだけ、下の中央に小さく)
         _credit = new Label { Text = Author.Credit, HorizontalAlignment = HorizontalAlignment.Right, LabelSettings = Ls(20, new Color(1, 1, 1, 0.75f), 6) };
         // 左下・右下は配信者の立ち絵を置く場所なので、下の中央に出す
         _credit.HorizontalAlignment = HorizontalAlignment.Center;

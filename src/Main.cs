@@ -489,7 +489,6 @@ public partial class Main : Node3D
         }
         lines.Add(($"参加 {_participants.Union(_raiders).Count()} 人", new Color("c9c3e6"), 26));
         lines.Add((ContinueFloor > 1 ? $"Enter で次へ(続きは {ContinueFloor} 階から)" : "Enter で次へ", new Color("c9c3e6"), 24));
-        lines.Add((Author.Credit, new Color(1, 1, 1, 0.6f), 20));
         _viewers.Save();
         Hud.ShowResult(_win ? (_floor >= 100 ? "鐘が鳴った!" : $"{_floor} 階 到達!") : "全滅…", lines);
         Hud.BossBar(null);
@@ -538,7 +537,7 @@ public partial class Main : Node3D
                 break;
         }
         UpdatePartyText();
-        Hud.ShowCredit(State is Phase.Lobby or Phase.Result);
+        Hud.ShowCredit(State == Phase.Lobby);
         Hud.SetStatus(_demo ? "デモ" : _hub.StatusLine() + "    F10 設定");
     }
 
