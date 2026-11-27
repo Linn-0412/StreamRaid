@@ -19,6 +19,8 @@ public class Settings
     public string YouTubeChannel { get; set; } = "";
     public string YouTubeUrl { get; set; } = "";
     public string TwitchChannel { get; set; } = "";
+    /// <summary>配信者のアバター(VRM ファイルの場所)。空なら標準のキャラ。</summary>
+    public string AvatarPath { get; set; } = "";
 
     [System.Text.Json.Serialization.JsonIgnore]
     public bool HasConnection =>

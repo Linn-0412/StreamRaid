@@ -14,6 +14,11 @@
 起動して F10(初回は自動で開きます)で接続設定を開き、YouTube のチャンネル(@ハンドル)か配信の URL、Twitch のチャンネル名を入れて「保存して接続」。
 ログインは要りません(コメントを読むだけ)。YouTube は CommentDeck と同じく、YouTube のチャット画面と同じ仕組みで読み込みます。
 
+## 配信者のアバター(VRM)
+
+接続設定(F10)の「VRM を選ぶ…」で、VRoid などで作った VRM(0.x / 1.0)を配信者のキャラにできます。
+VRM にはアニメーションが入っていないので、立ち・歩き・攻撃は骨を動かして付けています。
+
 ## 操作
 
 | | キーボード / マウス | ゲームパッド |
@@ -36,3 +41,8 @@
 ## ライセンス
 
 [GNU General Public License v3.0](LICENSE)(GPL-3.0)
+
+### 同梱しているもの
+
+- [godot-vrm](https://github.com/V-Sekai/godot-vrm)(`addons/vrm`、MIT License)— VRM の読み込み。実行中の読み込み(Godot 4.7)で向きの変換が効かない部分を直しています(変更箇所に `StreamRaid:` のコメント)
+- [Godot-MToon-Shader](https://github.com/V-Sekai/godot-vrm)(`addons/Godot-MToon-Shader`、MIT License)— VRM のアニメ調の見た目

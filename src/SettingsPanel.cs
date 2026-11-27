@@ -15,7 +15,9 @@ public partial class SettingsPanel : CanvasLayer
     PanelContainer _panel;
     LineEdit _name, _ytChannel, _ytUrl, _twitch;
     OptionButton _ytMode;
-    Label _ytStatus, _twStatus, _paused;
+    Label _ytStatus, _twStatus, _paused, _avatarLabel;
+    string _avatarPath = "";
+    FileDialog _file;
 
     public bool Open => _panel.Visible;
 
@@ -64,6 +66,35 @@ public partial class SettingsPanel : CanvasLayer
         _name = Edit("配信者");
         box.AddChild(_name);
 
+        box.AddChild(Caption("アバター(VRM)"));
+        var arow = new HBoxContainer();
+        arow.AddThemeConstantOverride("separation", 12);
+        _avatarLabel = new Label
+        {
+            CustomMinimumSize = new Vector2(440, 0),
+            ClipText = true,
+            VerticalAlignment = VerticalAlignment.Center,
+            LabelSettings = new LabelSettings { Font = Toon.Font, FontSize = 22, FontColor = Colors.White },
+        };
+        var pick = Button("VRM を選ぶ…");
+        pick.Pressed += () => _file.PopupCentered(new Vector2I(1100, 700));
+        var clear = Button("標準に戻す");
+        clear.Pressed += () => { _avatarPath = ""; UpdateAvatarLabel(); };
+        arow.AddChild(_avatarLabel);
+        arow.AddChild(pick);
+        arow.AddChild(clear);
+        box.AddChild(arow);
+        _file = new FileDialog
+        {
+            FileMode = FileDialog.FileModeEnum.OpenFile,
+            Access = FileDialog.AccessEnum.Filesystem,
+            Filters = new[] { "*.vrm ; VRM アバター" },
+            Title = "VRM アバターを選ぶ",
+            UseNativeDialog = true,
+        };
+        _file.FileSelected += p => { _avatarPath = p; UpdateAvatarLabel(); };
+        AddChild(_file);
+
         box.AddChild(Caption("YouTube"));
         _ytMode = new OptionButton();
         _ytMode.AddItem("チャンネル(@ハンドル)から配信中の枠を探す", 0);
@@ -104,6 +135,8 @@ public partial class SettingsPanel : CanvasLayer
             _ytChannel.Text = _s.YouTubeChannel;
             _ytUrl.Text = _s.YouTubeUrl;
             _twitch.Text = _s.TwitchChannel;
+            _avatarPath = _s.AvatarPath ?? "";
+            UpdateAvatarLabel();
             UpdateMode();
         }
         _panel.Visible = show;
@@ -112,6 +145,9 @@ public partial class SettingsPanel : CanvasLayer
         Toggled?.Invoke(show);
         _paused.Visible = GetTree().Paused;
     }
+
+    void UpdateAvatarLabel() =>
+        _avatarLabel.Text = string.IsNullOrWhiteSpace(_avatarPath) ? "標準のキャラ" : System.IO.Path.GetFileName(_avatarPath);
 
     void UpdateMode()
     {
@@ -126,6 +162,7 @@ public partial class SettingsPanel : CanvasLayer
         _s.YouTubeChannel = _ytChannel.Text.Trim();
         _s.YouTubeUrl = _ytUrl.Text.Trim();
         _s.TwitchChannel = _twitch.Text.Trim();
+        _s.AvatarPath = _avatarPath;
         _s.Save();
         Applied?.Invoke(_s);
         Show(false);

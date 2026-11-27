@@ -28,6 +28,8 @@ public partial class Main : Node3D
     Node3D _actors;
     CameraRig _cam;
     TestChat _chat;
+    VrmAvatar _avatarCache;
+    string _avatarCachePath, _avatarOverride;
     ChatHub _hub;
     SettingsPanel _settings;
     bool _demo;
@@ -56,6 +58,14 @@ public partial class Main : Node3D
     public override void _Ready()
     {
         I = this;
+        if (OS.GetCmdlineUserArgs().Contains("--avatartest"))
+        {
+            // 開発用: アバターの見た目と動きだけを確認する
+            AddChild(new AvatarTest());
+            SetProcess(false);
+            Hud = null;
+            return;
+        }
         if (OS.GetCmdlineUserArgs().Contains("--chattest"))
         {
             // 開発用: コメント取得だけを確認する
@@ -65,6 +75,8 @@ public partial class Main : Node3D
             return;
         }
         bool demo = _demo = OS.GetCmdlineUserArgs().Contains("--demo");
+        foreach (var a in OS.GetCmdlineUserArgs())
+            if (a.StartsWith("--avatar=")) _avatarOverride = a["--avatar=".Length..]; // 開発用
         Cfg = demo ? new Settings() : Settings.Load();
         if (demo) { Cfg.LobbySeconds = 5; Cfg.FloorCount = 2; Seed(7); }
         else _rng.Randomize();
@@ -106,10 +118,58 @@ public partial class Main : Node3D
 
     void OpenSettings() => _settings.Show(true);
 
+    string AvatarPath => _avatarOverride ?? Cfg.AvatarPath;
+
+    /// <summary>配信者のアバターを渡す(読み込みは 1 回だけ。作り直すときは使い回す)。</summary>
+    public VrmAvatar TakeAvatar()
+    {
+        var path = AvatarPath;
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        if (_avatarCache != null && _avatarCachePath == path && GodotObject.IsInstanceValid(_avatarCache))
+        {
+            var c = _avatarCache;
+            _avatarCache = null;
+            return c;
+        }
+        var model = AvatarLoader.Load(path, out var err);
+        if (model == null)
+        {
+            Hud?.Log($"アバターを読み込めませんでした: {err}", new Color("ff9a9a"));
+            return null;
+        }
+        _avatarCachePath = path;
+        return VrmAvatar.Create(model, 1.75f);
+    }
+
+    /// <summary>配信者を作り直す前に、アバターを外して取っておく。</summary>
+    void KeepAvatar()
+    {
+        if (Player == null || !GodotObject.IsInstanceValid(Player)) return;
+        var a = Player.ReleaseAvatar();
+        if (a == null) return;
+        _avatarCache?.QueueFree();
+        _avatarCache = a;
+    }
+
     void OnSettingsApplied(Settings s)
     {
         _hub.Apply(s);
         if (Player != null && IsInstanceValid(Player)) Player.Rename(s.StreamerName);
+        // アバターが変わったら配信者を作り直す(同じ場所・同じ HP で)
+        if (Player != null && IsInstanceValid(Player) && (s.AvatarPath ?? "") != (_avatarCachePath ?? "") && _avatarOverride == null)
+        {
+            var pos = Player.GlobalPosition;
+            float hp = Player.Hp;
+            Player.ReleaseAvatar()?.QueueFree();
+            _avatarCache?.QueueFree();
+            _avatarCache = null;
+            _avatarCachePath = null;
+            Player.QueueFree();
+            Units.Remove(Player);
+            SpawnPlayer(pos);
+            Player.Hp = Mathf.Min(hp, Player.MaxHp);
+            if (string.IsNullOrWhiteSpace(s.AvatarPath)) _avatarCachePath = "";
+        }
         // 視聴者の記録は接続先(チャンネル)ごとに分ける
         _viewers.Save();
         _viewers = new Viewers(s.ChannelKey);
@@ -518,6 +578,7 @@ public partial class Main : Node3D
 
     void ClearAll()
     {
+        KeepAvatar();
         foreach (var c in _actors.GetChildren()) c.QueueFree();
         foreach (var c in Level.GetChildren()) c.QueueFree();
         Units.Clear();

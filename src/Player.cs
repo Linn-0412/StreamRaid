@@ -10,6 +10,7 @@ public partial class Player : Unit
     public Vector3 BotMove;
     public bool BotAttack, BotDodge;
 
+    VrmAvatar _avatar;
     float _atkCd, _dodgeT, _dodgeCd;
     Vector3 _dodgeDir, _facing = Vector3.Forward;
 
@@ -18,10 +19,23 @@ public partial class Player : Unit
         DisplayName = Main.I.Cfg.StreamerName;
         Team = Team.Hero;
         MaxHp = Hp = 320;
-        var v = Toon.Character(new Color("ff7eb6"), new Color("ffe3ef"), 1.75f, 0.42f);
-        // 王冠(配信者の目印)
-        var crown = Toon.Mat(new Color("ffd34d"), true, 0.02f);
-        v.AddChild(Toon.Mesh(new CylinderMesh { TopRadius = 0.26f, BottomRadius = 0.2f, Height = 0.18f, RadialSegments = 8 }, crown, new Vector3(0, 1.62f, 0)));
+        Node3D v;
+        _avatar = Main.I.TakeAvatar();
+        if (_avatar != null)
+        {
+            // 配信者の VRM アバター。上から見ても見つけやすいように足元に光る輪を付ける
+            v = new Node3D();
+            v.AddChild(_avatar);
+            AddChild(Toon.Mesh(new TorusMesh { InnerRadius = 0.48f, OuterRadius = 0.6f, Rings = 32 },
+                               Toon.Glow(new Color(1f, 0.55f, 0.8f, 0.8f), 2f, true), new Vector3(0, 0.03f, 0), false));
+        }
+        else
+        {
+            v = Toon.Character(new Color("ff7eb6"), new Color("ffe3ef"), 1.75f, 0.42f);
+            // 王冠(配信者の目印)
+            var crown = Toon.Mat(new Color("ffd34d"), true, 0.02f);
+            v.AddChild(Toon.Mesh(new CylinderMesh { TopRadius = 0.26f, BottomRadius = 0.2f, Height = 0.18f, RadialSegments = 8 }, crown, new Vector3(0, 1.62f, 0)));
+        }
         Build(v, 1.75f, 0.42f, DisplayName, new Color("ffd34d"), 1.1f, new Color("ff8fc8"));
     }
 
@@ -71,11 +85,13 @@ public partial class Player : Unit
         }
         MoveAndSlide();
         Face(_facing, dt, 18f);
+        if (_avatar != null) _avatar.Move = Mathf.Clamp(Flat(Velocity).Length() / 6.5f, 0, 1);
     }
 
     void Attack()
     {
         _atkCd = 0.3f;
+        _avatar?.Attack();
         Fx.Swing(GlobalPosition, _facing, new Color("ffe066"));
         foreach (var u in Main.I.Units.ToArray())
         {
@@ -85,6 +101,15 @@ public partial class Player : Unit
             if (d < 1.9f && (d < 0.5f || _facing.Dot(to.Normalized()) > 0.15f))
                 u.Damage(26 + (float)GD.RandRange(0, 6), null);
         }
+    }
+
+    /// <summary>アバターを外して返す(作り直すときに読み込み直さなくて済むように)。</summary>
+    public VrmAvatar ReleaseAvatar()
+    {
+        var a = _avatar;
+        if (a != null && a.GetParent() != null) a.GetParent().RemoveChild(a);
+        _avatar = null;
+        return a;
     }
 
     public void Rename(string name)
