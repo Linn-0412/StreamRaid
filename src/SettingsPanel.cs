@@ -7,13 +7,15 @@ namespace StreamRaid;
 public partial class SettingsPanel : CanvasLayer
 {
     public event Action<Settings> Applied;
+    /// <summary>開いた(true)・閉じた(false)。</summary>
+    public event Action<bool> Toggled;
 
     Settings _s;
     ChatHub _hub;
     PanelContainer _panel;
     LineEdit _name, _ytChannel, _ytUrl, _twitch;
     OptionButton _ytMode;
-    Label _ytStatus, _twStatus;
+    Label _ytStatus, _twStatus, _paused;
 
     public bool Open => _panel.Visible;
 
@@ -26,6 +28,17 @@ public partial class SettingsPanel : CanvasLayer
     public override void _Ready()
     {
         Layer = 10;
+        ProcessMode = ProcessModeEnum.Always; // ゲームを一時停止していても開け閉めできるように
+        _paused = new Label
+        {
+            Text = "一時停止中",
+            Visible = false,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            LabelSettings = new LabelSettings { Font = Toon.Font, FontSize = 56, FontColor = new Color("fff3a0"), OutlineSize = 14, OutlineColor = new Color(0.05f, 0.03f, 0.08f) },
+        };
+        _paused.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
+        _paused.OffsetLeft = -400; _paused.OffsetRight = 400; _paused.OffsetTop = 150; _paused.OffsetBottom = 230;
+        AddChild(_paused);
         _panel = new PanelContainer { Visible = false };
         _panel.SetAnchorsPreset(Control.LayoutPreset.Center);
         _panel.GrowHorizontal = Control.GrowDirection.Both;
@@ -96,6 +109,8 @@ public partial class SettingsPanel : CanvasLayer
         _panel.Visible = show;
         if (show) _name.GrabFocus();
         else GetViewport().GuiReleaseFocus();
+        Toggled?.Invoke(show);
+        _paused.Visible = GetTree().Paused;
     }
 
     void UpdateMode()

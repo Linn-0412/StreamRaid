@@ -91,6 +91,8 @@ public partial class Main : Node3D
         _settings.Setup(Cfg, _hub);
         AddChild(_settings);
         _settings.Applied += OnSettingsApplied;
+        // ダンジョン・ボス戦の途中で設定を開いたらゲームを一時停止する(参加受付中は受付時間だけ止める)
+        _settings.Toggled += open => GetTree().Paused = open && State is Phase.Explore or Phase.Boss;
         if (demo) AddChild(new DemoBot { Chat = _chat });
         else
         {
