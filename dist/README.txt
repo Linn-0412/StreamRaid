@@ -28,6 +28,11 @@ StreamRaid
   コード署名をしていないため、初回は「Windows によって PC が保護されました」と出ることがあります。
   「詳細情報」→「実行」で起動できます。
 
+■ 作者
+  りんのゲーム部屋(@linn__t_games)
+  https://www.youtube.com/@linn__t_games
+
 ■ ライセンス
   GNU General Public License v3.0(LICENSE を参照)
+  改造して配布する場合も、作者表記(りんのゲーム部屋)を残してください。
   ソースコード: https://github.com/Linn-0412/StreamRaid

@@ -67,9 +67,16 @@ VRM にはアニメーションが入っていないので、立ち・歩き・�
 - 開発用の起動オプション: `--demo`(自動プレイ)、`--start-floor=N`(N 階から)、`--invincible`、`--credits-test`
 - コメント取得だけの確認: `godot --headless --path . -- --chattest --yt=@チャンネル --tw=チャンネル --seconds=40`
 
+## 作者
+
+[りんのゲーム部屋(@linn__t_games)](https://www.youtube.com/@linn__t_games)
+
 ## ライセンス
 
 [GNU General Public License v3.0](LICENSE)(GPL-3.0)
+
+**改造して配布する場合も、作者表記(りんのゲーム部屋)を残してください。**
+(GPL-3.0 第 7 条 b 項にもとづく追加条項: ゲーム内の作者表記 —— 参加受付と結果発表の右下、エンディングの「制作」、設定の「作った人」—— と、この README の作者表記を残すこと)
 
 ### 同梱しているもの
 

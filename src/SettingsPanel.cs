@@ -59,7 +59,7 @@ public partial class SettingsPanel : CanvasLayer
             LabelSettings = new LabelSettings { Font = Toon.Font, FontSize = 52, FontColor = new Color("fff3a0"), OutlineSize = 14, OutlineColor = new Color(0.05f, 0.03f, 0.08f) },
         };
         _paused.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        _paused.OffsetLeft = -400; _paused.OffsetRight = 400; _paused.OffsetTop = 20; _paused.OffsetBottom = 90;
+        _paused.OffsetLeft = -400; _paused.OffsetRight = 400; _paused.OffsetTop = 64; _paused.OffsetBottom = 134;
         AddChild(_paused);
 
         _panel = new PanelContainer { Visible = false, Theme = MakeTheme() };
@@ -208,6 +208,14 @@ public partial class SettingsPanel : CanvasLayer
         urow.AddChild(_applyUpdate);
         box.AddChild(urow);
         box.AddChild(Note("更新するとゲームがいったん閉じて、自動で起動し直します。設定と視聴者の記録はそのまま残ります。"));
+
+        box.AddChild(Caption("作った人"));
+        box.AddChild(Note($"StreamRaid は {Author.Name}({Author.Handle})が作っています。気に入ったらチャンネルにも遊びに来てください。"));
+        var channel = Button("YouTube チャンネルを開く");
+        channel.CustomMinimumSize = new Vector2(320, 48);
+        channel.SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin;
+        channel.Pressed += () => OS.ShellOpen(Author.ChannelUrl);
+        box.AddChild(channel);
 
         box.AddChild(Caption("視聴者の記録"));
         box.AddChild(Note("仲間のレベルや MVP の回数は、接続先のチャンネルごとにこの PC に保存しています。"));

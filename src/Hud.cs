@@ -6,7 +6,7 @@ namespace StreamRaid;
 /// <summary>画面の文字(状態・ログ・パーティー・ボスの HP・結果発表)。</summary>
 public partial class Hud : CanvasLayer
 {
-    Label _top, _status, _hint, _banner, _party, _help, _bossName;
+    Label _top, _status, _hint, _banner, _party, _help, _bossName, _credit;
     VBoxContainer _log;
     ProgressBar _boss;
     PanelContainer _result;
@@ -33,6 +33,12 @@ public partial class Hud : CanvasLayer
 
         _status = new Label { LabelSettings = Ls(22, new Color("bff6ff"), 6), Position = new Vector2(30, 66) };
         root.AddChild(_status);
+
+        // 作者の表記(参加受付と結果発表のときだけ、右下に小さく)
+        _credit = new Label { Text = Author.Credit, HorizontalAlignment = HorizontalAlignment.Right, LabelSettings = Ls(20, new Color(1, 1, 1, 0.75f), 6) };
+        _credit.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
+        _credit.OffsetLeft = -800; _credit.OffsetRight = -24; _credit.OffsetTop = -40; _credit.OffsetBottom = -12;
+        root.AddChild(_credit);
 
         _hint = new Label { LabelSettings = Ls(30, new Color("ffe9a8"), 10), HorizontalAlignment = HorizontalAlignment.Center };
         _hint.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
@@ -97,6 +103,7 @@ public partial class Hud : CanvasLayer
 
     public void SetTop(string text) => _top.Text = text;
     public void ShowTestKeys(bool show) => _help.Visible = show;
+    public void ShowCredit(bool show) => _credit.Visible = show;
     public void SetStatus(string text) => _status.Text = text;
     public void SetHint(string text) => _hint.Text = text;
 
@@ -145,10 +152,14 @@ public partial class Hud : CanvasLayer
         foreach (var n in names)
             box.AddChild(new Label { Text = n, HorizontalAlignment = HorizontalAlignment.Center, LabelSettings = Ls(40, Colors.White, 10) });
         box.AddChild(new Label { Text = " " });
+        box.AddChild(new Label { Text = "制作", HorizontalAlignment = HorizontalAlignment.Center, LabelSettings = Ls(34, new Color("ffd34d"), 10) });
+        box.AddChild(new Label { Text = Author.Name, HorizontalAlignment = HorizontalAlignment.Center, LabelSettings = Ls(46, Colors.White, 12) });
+        box.AddChild(new Label { Text = $"youtube.com/{Author.Handle}", HorizontalAlignment = HorizontalAlignment.Center, LabelSettings = Ls(30, new Color("c9c3e6"), 8) });
+        box.AddChild(new Label { Text = " " });
         box.AddChild(new Label { Text = "ありがとう。", HorizontalAlignment = HorizontalAlignment.Center, LabelSettings = Ls(48, new Color("8ff0ff"), 12) });
         layer.AddChild(box);
         AddChild(layer);
-        float height = 220 + names.Count * 58f;
+        float height = 520 + names.Count * 58f;
         float seconds = Mathf.Clamp(8 + names.Count * 0.6f, 10, 60);
         var t = CreateTween();
         t.TweenProperty(box, "position:y", -height, seconds);
