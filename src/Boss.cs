@@ -72,7 +72,7 @@ public partial class Boss : Unit
         _handLMat = Toon.Glow(new Color(0.4f, 0.8f, 1f, 0f), 4f, true);
         _handR = Toon.Mesh(new SphereMesh { Radius = 0.7f, Height = 1.4f }, _handRMat, new Vector3(2.35f, 1.3f, -0.8f), false);
         _handL = Toon.Mesh(new SphereMesh { Radius = 0.7f, Height = 1.4f }, _handLMat, new Vector3(-2.35f, 1.3f, -0.8f), false);
-        _auraMat = Toon.Glow(new Color(1f, 0.35f, 0.35f, 0f), 2.5f, true);
+        _auraMat = Toon.Glow(new Color(1f, 0.6f, 0.15f, 0f), 2.5f, true); // オレンジ(目の赤と見分けやすく)
         _aura = Toon.Mesh(new SphereMesh { Radius = 2.6f, Height = 5.2f }, _auraMat, new Vector3(0, 2.6f, 0), false);
         v.AddChild(_handR);
         v.AddChild(_handL);
@@ -167,7 +167,8 @@ public partial class Boss : Unit
     // ---- 予告の範囲表示がない技(45 階〜)。代わりに「光る場所・セリフ・音」で見分けられる
     //   右手が光る + 「我が右手に宿れ…」 → 番人の右側を薙ぎ払う
     //   左手が光る + 「左の刃よ…」     → 番人の左側を薙ぎ払う
-    //   体が赤く光る + 「大地よ、震えろ!」→ 番人のまわり全体に衝撃(離れる)
+    //   体がオレンジに光る + 「大地よ、震えろ!」→ 番人のまわり全体に衝撃(離れる)
+    //   左右の薙ぎ払いは、危ない側の床を最初に一瞬だけ光らせる(番人がこちらを向いていると左右が画面と逆になるため)
     //   目が赤く点滅 + 「――逃さぬ」 + 頭上の「!」→ 配信者の足元に一撃(動く)
 
     /// <summary>予兆のセリフ。番人の頭上は画面の外に出やすいので、HP バーの下に出す。</summary>
@@ -195,6 +196,7 @@ public partial class Boss : Unit
         if (right) { Charge(_handRMat, _handR, time); Say("我が右手に宿れ…", new Color("ffd34d"), time); Sfx.Play("tell_right"); }
         else { Charge(_handLMat, _handL, time); Say("左の刃よ…", new Color("8fd6ff"), time); Sfx.Play("tell_left"); }
         float r = 7.5f * Def.Size;
+        Fx.SideFlash(GlobalPosition, side, r, right ? new Color(1f, 0.8f, 0.3f) : new Color(0.5f, 0.85f, 1f), 0.45f);
         Main.I.GetTree().CreateTimer(time, false).Timeout += () =>
         {
             if (!IsInstanceValid(this) || Dead) return;
@@ -215,13 +217,13 @@ public partial class Boss : Unit
     {
         float time = Tele(1.4f);
         Charge(_auraMat, _aura, time);
-        Say("大地よ、震えろ!", new Color("ff8f8f"), time);
+        Say("大地よ、震えろ!", new Color("ffa64d"), time);
         Sfx.Play("tell_nova");
         float r = 6.5f * Def.Size;
         Main.I.GetTree().CreateTimer(time, false).Timeout += () =>
         {
             if (!IsInstanceValid(this) || Dead) return;
-            Fx.Burst(GlobalPosition + Vector3.Up * 0.5f, new Color(1f, 0.45f, 0.45f), r, 0.4f);
+            Fx.Burst(GlobalPosition + Vector3.Up * 0.5f, new Color(1f, 0.6f, 0.2f), r, 0.4f);
             Sfx.Play("impact", 0.7f);
             HitArea(GlobalPosition, r, 44);
             Main.I.Shake(0.6f);

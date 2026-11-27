@@ -94,4 +94,32 @@ public static class Fx
     }
 
     public static void Clear() => Dangers.Clear();
+
+    /// <summary>
+    /// 半円(扇)の形に床を一瞬だけ光らせる。番人の左右の薙ぎ払いで「画面のどっち側が危ないか」を見せる用。
+    /// side はその半円が向く方向(水平)。
+    /// </summary>
+    public static void SideFlash(Vector3 center, Vector3 side, float radius, Color color, float time)
+    {
+        var st = new SurfaceTool();
+        st.Begin(Mesh.PrimitiveType.Triangles);
+        const int seg = 24;
+        for (int i = 0; i < seg; i++)
+        {
+            float a0 = -Mathf.Pi / 2 + Mathf.Pi * i / seg, a1 = -Mathf.Pi / 2 + Mathf.Pi * (i + 1) / seg;
+            st.AddVertex(Vector3.Zero);
+            st.AddVertex(new Vector3(Mathf.Sin(a1), 0, -Mathf.Cos(a1)) * radius);
+            st.AddVertex(new Vector3(Mathf.Sin(a0), 0, -Mathf.Cos(a0)) * radius);
+        }
+        var mat = Toon.Glow(color with { A = 0.5f }, 1.5f, true);
+        mat.CullMode = BaseMaterial3D.CullModeEnum.Disabled;
+        var m = Toon.Mesh(st.Commit(), mat, Vector3.Zero, false);
+        Root.AddChild(m);
+        m.GlobalPosition = center with { Y = 0.05f };
+        // 半円の向き(-Z)を side に合わせる
+        m.LookAt(m.GlobalPosition + side with { Y = 0 }, Vector3.Up);
+        var t = m.CreateTween();
+        t.TweenProperty(mat, "albedo_color:a", 0f, time).SetEase(Tween.EaseType.In);
+        t.TweenCallback(Callable.From(m.QueueFree));
+    }
 }
