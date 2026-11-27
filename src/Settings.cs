@@ -8,7 +8,8 @@ public class Settings
     public string StreamerName { get; set; } = "配信者";
 
     // ---- ゲーム
-    public int FloorCount { get; set; } = 3;
+    /// <summary>塔の最上階(20〜100 階、5 刻み)。5 階ごとに番人。</summary>
+    public int FloorCount { get; set; } = 20;
     public int PartySize { get; set; } = 6;
     public float LobbySeconds { get; set; } = 60;
     /// <summary>0 = やさしい / 1 = ふつう / 2 = むずかしい。</summary>
@@ -78,7 +79,10 @@ public class Settings
             if (FileAccess.FileExists(Path))
             {
                 using var f = FileAccess.Open(Path, FileAccess.ModeFlags.Read);
-                return System.Text.Json.JsonSerializer.Deserialize<Settings>(f.GetAsText()) ?? new Settings();
+                var s = System.Text.Json.JsonSerializer.Deserialize<Settings>(f.GetAsText()) ?? new Settings();
+                // 古い設定(階の数 1〜8)や半端な値を 20〜100 の 5 刻みにそろえる
+                s.FloorCount = Mathf.Clamp((int)(Mathf.Round(s.FloorCount / 5f) * 5), 20, 100);
+                return s;
             }
         }
         catch { }

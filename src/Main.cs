@@ -5,8 +5,8 @@ using Godot;
 namespace StreamRaid;
 
 /// <summary>
-/// ゲーム全体の流れ: 参加受付 → ダンジョン(数フロア)→ ボスレイド → 結果発表。
-/// コメント(ChatMsg)はすべて OnChat に届く。
+/// ゲーム全体の流れ: 参加受付 → 塔を 1 階ずつ登る(5 階ごとに番人)→ 設定の最上階の番人を倒す → 結果発表。
+/// 番人を倒すたびに進み具合を保存し、次は「続きから」登れる。コメント(ChatMsg)はすべて OnChat に届く。
 /// </summary>
 public partial class Main : Node3D
 {
@@ -15,7 +15,12 @@ public partial class Main : Node3D
 
     public readonly List<Unit> Units = new();
     public Settings Cfg { get; private set; }
-    public bool InputBlocked => _settings != null && _settings.Open;
+    public bool InputBlocked => (_settings != null && _settings.Open) || (_dialogue != null && _dialogue.Open);
+    public int Floor => _floor;
+
+    /// <summary>階が上がるほど雑魚が硬く・強くなる(100 階で HP 約 5.5 倍、攻撃力 約 3 倍)。</summary>
+    public float FloorHpScale(int floor) => 1 + 0.045f * (floor - 1);
+    public float FloorDamageScale(int floor) => 1 + 0.02f * (floor - 1);
     public Player Player { get; private set; }
     public Hud Hud { get; private set; }
     public Node3D Level { get; private set; }
@@ -28,6 +33,10 @@ public partial class Main : Node3D
     Node3D _actors;
     CameraRig _cam;
     TestChat _chat;
+    DialogueBox _dialogue;
+    Progress _progress;
+    int _top, _startFloor, _bossesBeaten, _devStart;
+    bool _prologueShown;
     Updater.Info _update;
     bool _updating;
     VrmAvatar _avatarCache;
@@ -80,8 +89,10 @@ public partial class Main : Node3D
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a.StartsWith("--avatar=")) _avatarOverride = a["--avatar=".Length..]; // 開発用
         Cfg = demo ? new Settings() : Settings.Load();
-        if (demo) { Cfg.LobbySeconds = 5; Cfg.FloorCount = 2; Seed(7); }
+        if (demo) { Cfg.LobbySeconds = 5; Cfg.FloorCount = 10; Seed(7); }
         else _rng.Randomize();
+        foreach (var a in OS.GetCmdlineUserArgs())
+            if (a.StartsWith("--start-floor=") && int.TryParse(a["--start-floor=".Length..], out var sf)) _devStart = sf; // 開発用
         Inputs.Setup();
         Toon.Init();
         SetupWorld();
@@ -94,6 +105,10 @@ public partial class Main : Node3D
         AddChild(_cam);
         Hud = new Hud();
         AddChild(Hud);
+        _dialogue = new DialogueBox { AutoAdvance = demo ? 1.0f : 0 };
+        AddChild(_dialogue);
+        _progress = Progress.Load(demo ? "demo" : Cfg.ChannelKey);
+        if (demo) _progress.Checkpoint = 0;
         _viewers = new Viewers(demo ? "demo" : Cfg.ChannelKey);
         _chat = new TestChat();
         AddChild(_chat);
@@ -113,7 +128,7 @@ public partial class Main : Node3D
             Hud.Log("このチャンネルの視聴者の記録を消しました", new Color("8ff0ff"));
         };
         // ダンジョン・ボス戦の途中で設定を開いたらゲームを一時停止する(参加受付中は受付時間だけ止める)
-        _settings.Toggled += open => GetTree().Paused = open && State is Phase.Explore or Phase.Boss;
+        _settings.Toggled += _ => UpdatePause();
         if (demo) AddChild(new DemoBot { Chat = _chat });
         else
         {
@@ -124,11 +139,27 @@ public partial class Main : Node3D
 
         Hud.ShowTestKeys(Cfg.ShowTestKeys);
         EnterLobby();
+        // 開発用: --credits-test でエンディングのスタッフロールだけを流す
+        if (OS.GetCmdlineUserArgs().Contains("--credits-test"))
+            Hud.Credits("しじまの塔をともに登った声", TestChat.Names, null);
         if (OS.GetCmdlineUserArgs().Contains("--updated")) Hud.Banner($"v{Updater.CurrentVersion} に更新しました", 3f, new Color("8ff0ff"));
         if (!demo) _ = CheckUpdate(false);
     }
 
     void OpenSettings() => _settings.Show(true);
+
+    /// <summary>会話中、またはダンジョン・番人戦の途中で設定を開いている間はゲームを止める。</summary>
+    public void UpdatePause()
+    {
+        bool dialogue = _dialogue != null && _dialogue.Open;
+        bool settings = _settings != null && _settings.Open && State is Phase.Explore or Phase.Boss;
+        GetTree().Paused = dialogue || settings;
+    }
+
+    void PlayLines(IEnumerable<Story.Line> lines, System.Action done = null) => _dialogue.Play(lines, Cfg.StreamerName, done);
+
+    /// <summary>「続きから」で始まる階(倒した番人の次の階)。続きが無ければ 1 階。</summary>
+    int ContinueFloor => _progress.Checkpoint > 0 && _progress.Checkpoint < Cfg.FloorCount ? _progress.Checkpoint + 1 : 1;
 
     /// <summary>新しいバージョンを確認する(起動時は静かに、ボタンからは結果を表示)。</summary>
     async System.Threading.Tasks.Task CheckUpdate(bool manual)
@@ -222,9 +253,10 @@ public partial class Main : Node3D
             Player.Hp = Mathf.Min(hp, Player.MaxHp);
             if (string.IsNullOrWhiteSpace(s.AvatarPath)) _avatarCachePath = "";
         }
-        // 視聴者の記録は接続先(チャンネル)ごとに分ける
+        // 視聴者の記録・塔の進み具合は接続先(チャンネル)ごとに分ける
         _viewers.Save();
         _viewers = new Viewers(s.ChannelKey);
+        _progress = Progress.Load(s.ChannelKey);
         Hud.Log("接続設定を保存しました", new Color("8ff0ff"));
     }
 
@@ -269,59 +301,143 @@ public partial class Main : Node3D
         _map = Dungeon.Build(Level, 18, 0, 0, _rng);
         SpawnPlayer(new Vector3(0, 0, 2));
         _lobbyLeft = Cfg.LobbySeconds;
+        _cam.Offset = new Vector3(0, 11, 9.5f);
         Hud.ShowResult(null, null);
+        Hud.BossBar(null);
         Hud.Banner("参加受付中!", 2.5f);
         Hud.SetHint((Cfg.MembersOnlyJoin ? "メンバーの人は" : "") + "コメントで「#参加 戦士」「#参加 魔法使い」「#参加 僧侶」と書くと仲間になれます");
+        // 物語: 初めてならプロローグ、続きがあれば「おかえり」
+        if (ContinueFloor > 1) PlayLines(Story.Continue(_progress.Checkpoint));
+        else if (!_prologueShown) { _prologueShown = true; PlayLines(Story.Prologue); }
     }
 
-    void StartRun()
+    void StartRun(int from)
     {
+        _top = Cfg.FloorCount;
+        if (_devStart > 0)
+        {
+            // 開発用: 指定の階から始める(最上階が足りなければ広げる)
+            from = _devStart;
+            _top = Mathf.Max(_top, (from + 4) / 5 * 5);
+            _devStart = 0;
+        }
+        _startFloor = Mathf.Clamp(from, 1, _top);
+        _floor = _startFloor - 1;
+        _bossesBeaten = 0;
         State = Phase.Explore;
-        Hud.Log("冒険に出発!", new Color("ffe9a8"));
+        Hud.Log(_startFloor > 1 ? $"{_startFloor} 階から続きを登る!" : "塔に挑む!", new Color("ffe9a8"));
         NextFloor();
     }
 
     void NextFloor()
     {
         _floor++;
+        GD.Print($"[tower] floor {_floor} / {_top}");
         ClearMonstersAndLevel();
-        if (_floor > Cfg.FloorCount) { EnterBoss(); return; }
-        float size = 24 + _floor * 2;
-        _map = Dungeon.Build(Level, size, 4 + _floor, _floor, _rng);
+        _boss = null;
+        Hud.BossBar(null);
+        var stratum = Story.StratumOf(_floor);
+        int theme = 1 + Story.StratumIndex(_floor);
+        if (_floor % 5 == 0) { EnterGuardian(theme); return; }
+
+        State = Phase.Explore;
+        _cam.Offset = new Vector3(0, 11, 9.5f);
+        float size = 22 + Mathf.Min(8, _floor / 10);
+        _map = Dungeon.Build(Level, size, 4 + _floor % 5 + Mathf.Min(4, _floor / 20), theme, _rng);
         PlaceHeroes(new Vector3(0, 0, _map.Half - 3));
-        int total = 4 + _floor * 2;
+        // 1 フロアは短め(番人の間までのテンポを大事に)。上の階ほど敵が少し多い
+        int total = 4 + _floor % 5 + Mathf.Min(6, _floor / 15);
         int first = total / 2 + 1;
         for (int i = 0; i < first; i++) SpawnMonster(RandomKind(), null, RandomSpot(8));
         _waveLeft = total - first;
         _portal = null;
-        Hud.Banner($"地下 {_floor} 階", 1.8f);
+        Hud.Banner($"{_floor} 階  {stratum.Name}", 1.8f);
+        Hud.SetTop($"{_floor} / {_top} 階  {stratum.Name}");
         Hud.SetHint(Cfg.AllowSummon ? "「#召喚 スライム / ゴブリン / コウモリ」で敵を送れます。仲間は「技」でスキル"
                                     : "仲間は「技」とコメントするとスキルを使います");
+        // 新しい階層に入ったとき(と、登り始めの階)はリコが話す
+        if (_floor == stratum.From || _floor == _startFloor)
+            PlayLines(stratum.Intro.Select(t => new Story.Line(Story.Guide, t)));
     }
 
-    void EnterBoss()
+    /// <summary>5 階ごとの番人の間。会話のあと戦闘が始まる。</summary>
+    void EnterGuardian(int theme)
     {
         State = Phase.Boss;
-        _map = Dungeon.Build(Level, 34, 0, 4, _rng);
+        var def = Story.GuardianAt(_floor);
+        _map = Dungeon.Build(Level, 32, 0, theme, _rng);
         PlaceHeroes(new Vector3(0, 0, _map.Half - 4));
         _boss = new Boss();
+        _boss.Setup(def, _floor);
         _actors.AddChild(_boss);
         _boss.GlobalPosition = new Vector3(0, 0, -5);
-        _boss.MaxHp = _boss.Hp = (1400 + 120 * _participants.Count) * Cfg.EnemyScale;
-        _boss.Died += _ => Finish(true);
-        _cam.Offset = new Vector3(0, 15, 13);
-        Hud.Banner($"{Boss.BossName} 出現!", 2.5f, new Color("ff8f8f"));
+        _boss.MaxHp = _boss.Hp = (1200 + _floor * 180 + 100 * _participants.Count) * Cfg.EnemyScale * (_floor >= 100 ? 1.5f : 1f);
+        _boss.Died += _ => OnGuardianDefeated();
+        // 大きな番人ほどカメラを引いて、全身が入るようにする
+        float big = def.Size - 1;
+        _cam.Offset = new Vector3(0, 15 + big * 12, 13 + big * 9);
+        Hud.Banner($"{_floor} 階  番人の間", 2f, new Color("ff8f8f"));
+        Hud.SetTop($"{_floor} / {_top} 階  番人の間");
         Hud.SetHint("コメントするとボスに攻撃が飛びます! 投げ銭は必殺技");
+        var boss = _boss;
+        PlayLines(def.Before, () =>
+        {
+            if (!IsInstanceValid(boss) || boss.Dead) return;
+            boss.Active = true;
+            Hud.Banner($"{def.Name}  戦闘開始!", 1.6f, new Color("ff8f8f"));
+        });
+    }
+
+    void OnGuardianDefeated()
+    {
+        var def = _boss.Def;
+        _bossesBeaten++;
+        GD.Print($"[tower] guardian defeated at {_floor}: {def.Name}");
+        // ここまでを保存(次は続きから登れる)
+        if (_floor > _progress.Checkpoint) _progress.Checkpoint = _floor;
+        _progress.Save();
+        _viewers.Save();
+        foreach (var u in Units.ToArray()) if (u.Team == Team.Monster) u.QueueFree();
+        Hud.BossBar(null);
+        Hud.Log($"{def.Name}を倒した! ({_floor} 階まで記録しました)", new Color("ffe9a8"));
+        PlayLines(new[] { new Story.Line(def.Name, def.Defeat) }, () =>
+        {
+            if (_floor >= _top)
+            {
+                if (_floor >= 100) PlayEnding();
+                else PlayLines(Story.CourseClear(_floor), () => Finish(true));
+                return;
+            }
+            State = Phase.Explore;
+            _waveLeft = 0;
+            if (Player != null && IsInstanceValid(Player)) Player.Revive(0.5f);
+            _portal = Dungeon.Portal(Level, new Vector3(0, 0, -_map.Half + 3));
+            Hud.Banner("番人を倒した!", 1.6f);
+        });
+    }
+
+    /// <summary>100 階を登りきった: 鐘が鳴り、参加してくれた人の名前が流れる。</summary>
+    void PlayEnding()
+    {
+        _progress.Clears++;
+        _progress.Checkpoint = 0; // 物語は最初から
+        _progress.Save();
+        PlayLines(Story.Ending, () =>
+        {
+            var names = _participants.Union(_raiders).OrderByDescending(n => _damage.GetValueOrDefault(n)).ToList();
+            Hud.Credits("しじまの塔をともに登った声", names, () => Finish(true));
+        });
     }
 
     void Finish(bool win)
     {
         if (State == Phase.Result) return;
         _win = win;
+        GD.Print($"[tower] finish win={win} floor={_floor} checkpoint={_progress.Checkpoint}");
         State = Phase.Result;
-        Hud.Banner(win ? "討伐成功!" : "全滅…", 2f, win ? new Color("fff3a0") : new Color("ff8f8f"));
+        Hud.Banner(win ? (_floor >= 100 ? "鐘が鳴った!" : $"{_floor} 階 到達!") : "全滅…", 2f, win ? new Color("fff3a0") : new Color("ff8f8f"));
         _resultAt = Now + 2.2;
-        foreach (var u in Units.ToArray()) if (u.Team == Team.Monster && u != _boss) u.QueueFree();
+        foreach (var u in Units.ToArray()) if (u.Team == Team.Monster) u.QueueFree();
     }
 
     void ShowResult()
@@ -339,10 +455,13 @@ public partial class Main : Node3D
         if (sab.Key != null)
             lines.Add(($"いちばん邪魔した人  {sab.Key}  ({Mathf.RoundToInt(sab.Value)} ダメージ)", new Color("ff9a9a"), 30));
 
+        int climbed = Mathf.Max(0, _floor - _startFloor + 1);
+        lines.Insert(0, ($"{_startFloor} 階 → {_floor} 階   倒した番人 {_bossesBeaten} 体", new Color("bff6ff"), 30));
         var ups = new List<string>();
         foreach (var name in _participants.Union(_raiders))
         {
-            int exp = (_win ? 80 : 30) + Mathf.RoundToInt(_damage.GetValueOrDefault(name) / 15f);
+            // 登った階・倒した番人の数で経験値が増える(何度も参加するほど仲間が育つ)
+            int exp = (_win ? 60 : 0) + climbed * 6 + _bossesBeaten * 25 + Mathf.RoundToInt(_damage.GetValueOrDefault(name) / 15f);
             var v = _viewers.Get(name);
             v.Runs++;
             int up = _viewers.AddExp(name, exp);
@@ -361,9 +480,9 @@ public partial class Main : Node3D
             }
         }
         lines.Add(($"参加 {_participants.Union(_raiders).Count()} 人", new Color("c9c3e6"), 26));
-        lines.Add(("Enter でもう一度", new Color("c9c3e6"), 24));
+        lines.Add((ContinueFloor > 1 ? $"Enter で次へ(続きは {ContinueFloor} 階から)" : "Enter で次へ", new Color("c9c3e6"), 24));
         _viewers.Save();
-        Hud.ShowResult(_win ? "討伐成功!" : "全滅…", lines);
+        Hud.ShowResult(_win ? (_floor >= 100 ? "鐘が鳴った!" : $"{_floor} 階 到達!") : "全滅…", lines);
         Hud.BossBar(null);
     }
 
@@ -377,14 +496,15 @@ public partial class Main : Node3D
             case Phase.Lobby:
                 // 配信者が接続設定を開いている間は受付の残り時間を止める
                 if (!InputBlocked) _lobbyLeft -= dt;
+                string go = ContinueFloor > 1 ? $"Enter: 続きから({ContinueFloor} 階)  F8: 1 階から" : "Enter で出発";
                 Hud.SetTop(InputBlocked
-                    ? $"参加受付中  あと {Mathf.CeilToInt(Mathf.Max(0, _lobbyLeft))} 秒(設定中は止まっています)"
-                    : $"参加受付中  あと {Mathf.CeilToInt(Mathf.Max(0, _lobbyLeft))} 秒   (Enter で出発)");
-                if (_lobbyLeft <= 0) StartRun();
+                    ? $"参加受付中  あと {Mathf.CeilToInt(Mathf.Max(0, _lobbyLeft))} 秒(止まっています)"
+                    : $"参加受付中  あと {Mathf.CeilToInt(Mathf.Max(0, _lobbyLeft))} 秒   {go}");
+                if (_lobbyLeft <= 0) StartRun(ContinueFloor);
                 break;
             case Phase.Explore:
                 int left = MonsterCount;
-                Hud.SetTop($"地下 {_floor} / {Cfg.FloorCount} 階    敵 {left + _waveLeft}");
+                Hud.SetTop($"{_floor} / {_top} 階  {Story.StratumOf(_floor).Name}    敵 {left + _waveLeft}");
                 if (left <= 1 && _waveLeft > 0)
                 {
                     for (int i = 0; i < _waveLeft; i++) SpawnMonster(RandomKind(), null, RandomSpot(9));
@@ -400,7 +520,7 @@ public partial class Main : Node3D
                     NextFloor();
                 break;
             case Phase.Boss:
-                Hud.SetTop($"ボス戦    参加 {_raiders.Count} 人");
+                Hud.SetTop($"{_floor} / {_top} 階  番人の間    参加 {_raiders.Count} 人");
                 Hud.BossBar(_boss);
                 break;
             case Phase.Result:
@@ -414,8 +534,10 @@ public partial class Main : Node3D
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (Hud == null || !e.IsActionPressed("start")) return;
-        if (State == Phase.Lobby) StartRun();
+        if (Hud == null || InputBlocked) return;
+        if (State == Phase.Lobby && e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F8 }) { StartRun(1); return; }
+        if (!e.IsActionPressed("start")) return;
+        if (State == Phase.Lobby) StartRun(ContinueFloor);
         else if (State == Phase.Result && _resultAt < 0) EnterLobby();
     }
 
@@ -510,7 +632,8 @@ public partial class Main : Node3D
         if (_boss == null || !IsInstanceValid(_boss) || _boss.Dead) return;
         if (!Cfg.PaidSpecial && m.PaidYen > 0) m = m with { PaidYen = 0, PaidText = null }; // 必殺技なし(設定)
         if (m.PaidYen <= 0 && !OffCooldown(m.User, "raid", Cfg.RaidInterval)) return;
-        if (_raiders.Add(m.User) && _raiders.Count > _participants.Count) _boss.AddParticipant(60);
+        if (!_boss.Active) return; // 会話中はまだ戦っていない
+        if (_raiders.Add(m.User) && _raiders.Count > _participants.Count) _boss.AddParticipant(60 * FloorHpScale(_floor));
 
         float dmg = 12 + _rng.Randf() * 8;
         var color = new Color("fff6d6");
@@ -624,7 +747,7 @@ public partial class Main : Node3D
         return new Vector3(0, 0, -h);
     }
 
-    Kind RandomKind() => (Kind)_rng.RandiRange(0, _floor >= 2 ? 2 : 1);
+    Kind RandomKind() => (Kind)_rng.RandiRange(0, _floor >= 3 ? 2 : 1);
 
     int MonsterCount => Units.Count(u => u.Team == Team.Monster && !u.Dead);
 

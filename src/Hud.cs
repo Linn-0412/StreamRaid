@@ -128,6 +128,34 @@ public partial class Hud : CanvasLayer
 
     public void SetParty(string text) => _party.Text = text;
 
+    /// <summary>エンディングのスタッフロール。参加してくれた人の名前を下から上へ流し、終わったら done。</summary>
+    public void Credits(string title, System.Collections.Generic.IList<string> names, System.Action done)
+    {
+        var layer = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
+        layer.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        var dim = new ColorRect { Color = new Color(0, 0, 0, 0.75f), MouseFilter = Control.MouseFilterEnum.Ignore };
+        dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        layer.AddChild(dim);
+        var box = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Begin };
+        box.AddThemeConstantOverride("separation", 14);
+        box.Position = new Vector2(0, 1100);
+        box.Size = new Vector2(1920, 0);
+        box.AddChild(new Label { Text = title, HorizontalAlignment = HorizontalAlignment.Center, LabelSettings = Ls(54, new Color("ffd34d"), 12) });
+        box.AddChild(new Label { Text = " " });
+        foreach (var n in names)
+            box.AddChild(new Label { Text = n, HorizontalAlignment = HorizontalAlignment.Center, LabelSettings = Ls(40, Colors.White, 10) });
+        box.AddChild(new Label { Text = " " });
+        box.AddChild(new Label { Text = "ありがとう。", HorizontalAlignment = HorizontalAlignment.Center, LabelSettings = Ls(48, new Color("8ff0ff"), 12) });
+        layer.AddChild(box);
+        AddChild(layer);
+        float height = 220 + names.Count * 58f;
+        float seconds = Mathf.Clamp(8 + names.Count * 0.6f, 10, 60);
+        var t = CreateTween();
+        t.TweenProperty(box, "position:y", -height, seconds);
+        t.TweenProperty(layer, "modulate:a", 0f, 0.8);
+        t.TweenCallback(Callable.From(() => { layer.QueueFree(); done?.Invoke(); }));
+    }
+
     public void BossBar(Unit boss)
     {
         bool show = boss != null && IsInstanceValid(boss) && !boss.Dead;

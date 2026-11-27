@@ -11,10 +11,11 @@ public static class Dungeon
     static readonly Theme[] Themes =
     {
         new(new Color("3d6b4f"), new Color("355f45"), new Color("6b5a8e"), new Color("ffd08a")), // 0: 拠点
-        new(new Color("4a4466"), new Color("403a5a"), new Color("7a6aa8"), new Color("ffb36b")), // 1
-        new(new Color("35506e"), new Color("2e4762"), new Color("5a86b0"), new Color("8fd6ff")), // 2
-        new(new Color("5e3f4a"), new Color("543641"), new Color("9a5a6e"), new Color("ff8f8f")), // 3
-        new(new Color("2b2440"), new Color("241e36"), new Color("4a3a78"), new Color("c08bff")), // ボス
+        new(new Color("5a5f55"), new Color("4f5449"), new Color("7d8a6a"), new Color("ffd08a")), // 1: 石の回廊
+        new(new Color("5e4632"), new Color("533d2b"), new Color("8a6a4a"), new Color("ffb36b")), // 2: 嘆きの書庫
+        new(new Color("6b6488"), new Color("5f587a"), new Color("c8c0e8"), new Color("e8d8ff")), // 3: 鏡の庭
+        new(new Color("4a6a86"), new Color("405d77"), new Color("9fd0f0"), new Color("bff0ff")), // 4: 凍える鐘楼
+        new(new Color("241e36"), new Color("1c172b"), new Color("4a3a78"), new Color("c08bff")), // 5: しじまの玉座
     };
 
     public record Built(float Half, List<Vector3> Blocked);

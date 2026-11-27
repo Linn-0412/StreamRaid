@@ -112,6 +112,13 @@ public partial class Player : Unit
         return a;
     }
 
+    /// <summary>開発用: --invincible で配信者がやられない(エンディングなどの確認用)。</summary>
+    public override void Damage(float amount, string source = null)
+    {
+        if (OS.GetCmdlineUserArgs().Contains("--invincible")) return;
+        base.Damage(amount, source);
+    }
+
     public void Rename(string name)
     {
         DisplayName = name;

@@ -159,7 +159,7 @@ public partial class SettingsPanel : CanvasLayer
     Control GameTab()
     {
         var box = Page("ゲーム", out var root);
-        box.AddChild(Row("ダンジョンの階の数", _floors = Spin(1, 8, 1, " 階"), "多いほど 1 回の冒険が長くなります(1 階あたり数分)"));
+        box.AddChild(Row("塔の最上階", _floors = Spin(20, 100, 5, " 階"), "5 階ごとに番人がいます。番人を倒すと記録され、次は「続きから」登れます。100 階はとても難しい"));
         box.AddChild(Row("参加受付の時間", _lobby = Spin(10, 300, 5, " 秒"), "受付中は Enter でいつでも出発できます"));
         box.AddChild(Row("仲間の最大人数", _party = Spin(1, 10, 1, " 人"), "あふれた人は控えになり、仲間が倒れると交代します"));
         _difficulty = new OptionButton();

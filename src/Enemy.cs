@@ -57,8 +57,9 @@ public partial class Enemy : Unit
         }
         // 難しさ(設定)で HP と攻撃力を変える
         float diff = Main.I.Cfg.EnemyScale;
-        MaxHp *= _scale * diff;
-        _dmg *= diff;
+        int floor = Mathf.Max(1, Main.I.Floor);
+        MaxHp *= _scale * diff * Main.I.FloorHpScale(floor);
+        _dmg *= diff * Main.I.FloorDamageScale(floor);
         Hp = MaxHp;
         v.Scale = Vector3.One * _scale;
         var label = Summoner != null ? $"{Summoner}の{KindName(Kind)}" : null;
