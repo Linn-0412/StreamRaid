@@ -260,8 +260,11 @@ public partial class Main : Node3D
         switch (State)
         {
             case Phase.Lobby:
-                _lobbyLeft -= dt;
-                Hud.SetTop($"参加受付中  あと {Mathf.CeilToInt(Mathf.Max(0, _lobbyLeft))} 秒   (Enter で出発)");
+                // 配信者が接続設定を開いている間は受付の残り時間を止める
+                if (!InputBlocked) _lobbyLeft -= dt;
+                Hud.SetTop(InputBlocked
+                    ? $"参加受付中  あと {Mathf.CeilToInt(Mathf.Max(0, _lobbyLeft))} 秒(設定中は止まっています)"
+                    : $"参加受付中  あと {Mathf.CeilToInt(Mathf.Max(0, _lobbyLeft))} 秒   (Enter で出発)");
                 if (_lobbyLeft <= 0) StartRun();
                 break;
             case Phase.Explore:
