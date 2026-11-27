@@ -28,6 +28,8 @@ public partial class Main : Node3D
     Node3D _actors;
     CameraRig _cam;
     TestChat _chat;
+    Updater.Info _update;
+    bool _updating;
     VrmAvatar _avatarCache;
     string _avatarCachePath, _avatarOverride;
     ChatHub _hub;
@@ -103,6 +105,8 @@ public partial class Main : Node3D
         _settings.Setup(Cfg, _hub);
         AddChild(_settings);
         _settings.Applied += OnSettingsApplied;
+        _settings.CheckUpdate += () => _ = CheckUpdate(true);
+        _settings.ApplyUpdate += () => _ = ApplyUpdate();
         _settings.ResetViewers += () =>
         {
             _viewers.Clear();
@@ -120,9 +124,50 @@ public partial class Main : Node3D
 
         Hud.ShowTestKeys(Cfg.ShowTestKeys);
         EnterLobby();
+        if (OS.GetCmdlineUserArgs().Contains("--updated")) Hud.Banner($"v{Updater.CurrentVersion} に更新しました", 3f, new Color("8ff0ff"));
+        if (!demo) _ = CheckUpdate(false);
     }
 
     void OpenSettings() => _settings.Show(true);
+
+    /// <summary>新しいバージョンを確認する(起動時は静かに、ボタンからは結果を表示)。</summary>
+    async System.Threading.Tasks.Task CheckUpdate(bool manual)
+    {
+        if (manual) _settings.SetUpdateStatus("確認しています…", false);
+        try
+        {
+            _update = await Updater.CheckAsync();
+            if (_update != null)
+            {
+                bool can = Updater.CanApply;
+                _settings.SetUpdateStatus($"新しいバージョン v{_update.Version} があります" + (can ? "" : "(開発中の起動では適用できません)"), can);
+                Hud.Log($"新しいバージョン v{_update.Version} があります(F10 → その他 で更新)", new Color("8ff0ff"));
+            }
+            else if (manual) _settings.SetUpdateStatus("最新です", false);
+            // 開発用: --apply-update-now で見つかった更新をすぐ適用する(更新の動作確認用)
+            if (_update != null && OS.GetCmdlineUserArgs().Contains("--apply-update-now")) await ApplyUpdate();
+        }
+        catch (System.Exception e)
+        {
+            if (manual) _settings.SetUpdateStatus("確認できませんでした: " + e.Message, false);
+        }
+    }
+
+    async System.Threading.Tasks.Task ApplyUpdate()
+    {
+        if (_update == null || _updating) return;
+        _updating = true;
+        try
+        {
+            _viewers.Save();
+            await Updater.ApplyAsync(_update, text => _settings.SetUpdateStatus(text, false));
+        }
+        catch (System.Exception e)
+        {
+            _settings.SetUpdateStatus("更新できませんでした: " + e.Message, true);
+            _updating = false;
+        }
+    }
 
     string AvatarPath => _avatarOverride ?? Cfg.AvatarPath;
 

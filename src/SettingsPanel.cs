@@ -12,6 +12,8 @@ public partial class SettingsPanel : CanvasLayer
     public event Action<bool> Toggled;
     /// <summary>「視聴者の記録を消す」が押された。</summary>
     public event Action ResetViewers;
+    /// <summary>「更新を確認」/「今すぐ更新」が押された。</summary>
+    public event Action CheckUpdate, ApplyUpdate;
 
     Settings _s;
     ChatHub _hub;
@@ -33,6 +35,8 @@ public partial class SettingsPanel : CanvasLayer
     TextEdit _blocked;
     // その他
     CheckButton _testKeys;
+    Label _updateLabel;
+    Button _applyUpdate;
 
     public bool Open => _panel.Visible;
 
@@ -190,6 +194,21 @@ public partial class SettingsPanel : CanvasLayer
         box.AddChild(_testKeys);
         box.AddChild(Note("配信に映したくない場合はオフにしてください。キー自体はオフでも使えます。"));
 
+        box.AddChild(Caption("バージョン・アップデート"));
+        _updateLabel = Note($"いまのバージョン: v{Updater.CurrentVersion}");
+        box.AddChild(_updateLabel);
+        var urow = new HBoxContainer();
+        urow.AddThemeConstantOverride("separation", 12);
+        var check = Button("更新を確認");
+        check.Pressed += () => CheckUpdate?.Invoke();
+        _applyUpdate = Button("今すぐ更新");
+        _applyUpdate.Disabled = true;
+        _applyUpdate.Pressed += () => ApplyUpdate?.Invoke();
+        urow.AddChild(check);
+        urow.AddChild(_applyUpdate);
+        box.AddChild(urow);
+        box.AddChild(Note("更新するとゲームがいったん閉じて、自動で起動し直します。設定と視聴者の記録はそのまま残ります。"));
+
         box.AddChild(Caption("視聴者の記録"));
         box.AddChild(Note("仲間のレベルや MVP の回数は、接続先のチャンネルごとにこの PC に保存しています。"));
         var reset = Button("このチャンネルの記録を消す");
@@ -207,6 +226,13 @@ public partial class SettingsPanel : CanvasLayer
         reset.Pressed += () => confirm.PopupCentered();
         box.AddChild(reset);
         return root;
+    }
+
+    /// <summary>アップデートの状態を表示する。</summary>
+    public void SetUpdateStatus(string text, bool canApply)
+    {
+        _updateLabel.Text = $"いまのバージョン: v{Updater.CurrentVersion}    {text}";
+        _applyUpdate.Disabled = !canApply;
     }
 
     // ---------------------------------------------------------------- 開け閉め・保存

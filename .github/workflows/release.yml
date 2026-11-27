@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  GODOT_VERSION: 4.7.2-stable
+  GODOT_DIR: ${{ github.workspace }}/../godot
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+
+      # Godot 本体と書き出し用テンプレート(約 1.3 GB)は毎回落とさずにキャッシュする
+      - name: Cache Godot
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.GODOT_DIR }}
+          key: godot-${{ env.GODOT_VERSION }}-mono-win64
+
+      - name: Download Godot
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force $env:GODOT_DIR | Out-Null
+          Set-Location $env:GODOT_DIR
+          gh release download $env:GODOT_VERSION -R godotengine/godot `
+            -p "Godot_v$($env:GODOT_VERSION)_mono_win64.zip" `
+            -p "Godot_v$($env:GODOT_VERSION)_mono_export_templates.tpz" `
+            -p "SHA512-SUMS.txt"
+          # 公式のチェックサムと照合する
+          $sums = Get-Content SHA512-SUMS.txt
+          foreach ($f in "Godot_v$($env:GODOT_VERSION)_mono_win64.zip", "Godot_v$($env:GODOT_VERSION)_mono_export_templates.tpz") {
+            $expected = ($sums | Where-Object { $_ -like "*  $f" }).Split(' ')[0]
+            $actual = (Get-FileHash $f -Algorithm SHA512).Hash.ToLower()
+            if ($expected -ne $actual) { throw "checksum mismatch: $f" }
+          }
+          Expand-Archive "Godot_v$($env:GODOT_VERSION)_mono_win64.zip" -DestinationPath . -Force
+          Expand-Archive "Godot_v$($env:GODOT_VERSION)_mono_export_templates.tpz" -DestinationPath tpl -Force
+          Remove-Item *.zip, *.tpz
+
+      - name: Install export templates
+        shell: pwsh
+        run: |
+          $ver = $env:GODOT_VERSION -replace '-', '.'
+          $dest = Join-Path $env:APPDATA "Godot/export_templates/$ver.mono"
+          New-Item -ItemType Directory -Force $dest | Out-Null
+          Copy-Item "$env:GODOT_DIR/tpl/templates/*" $dest -Recurse -Force
+
+      - name: Export
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          # バージョンを project.godot に書く(ゲーム内の表示と更新の比較に使う)
+          (Get-Content project.godot -Raw) -replace 'config/version="[^"]*"', "config/version=`"$version`"" |
+            Set-Content project.godot -NoNewline -Encoding utf8NoBOM
+          $godot = Get-ChildItem "$env:GODOT_DIR" -Recurse -Filter "Godot_v*_mono_win64_console.exe" | Select-Object -First 1
+          New-Item -ItemType Directory -Force export/StreamRaid | Out-Null
+          & $godot.FullName --headless --path . --import
+          & $godot.FullName --headless --path . --export-release "Windows Desktop" export/StreamRaid/StreamRaid.exe
+          if (-not (Test-Path export/StreamRaid/StreamRaid.exe)) { throw 'export failed' }
+          Copy-Item LICENSE, dist/README.txt export/StreamRaid/
+
+      # 自動更新用: zip に RSA 署名して latest.json を作る(公開鍵は src/Updater.cs に埋め込み)
+      - name: Package and sign
+        shell: pwsh
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if (-not $env:UPDATE_SIGNING_KEY) { throw 'Secret UPDATE_SIGNING_KEY が設定されていません' }
+          $tag = '${{ github.ref_name }}'
+          New-Item -ItemType Directory -Force out | Out-Null
+          $zip = "out/StreamRaid-$tag.zip"
+          Compress-Archive -Path export/StreamRaid -DestinationPath $zip
+          $hash = [System.Security.Cryptography.SHA256]::HashData([IO.File]::ReadAllBytes($zip))
+          # Secret は秘密鍵 XML を base64 にしたもの(改行・文字コードで壊れないように)
+          $keyXml = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:UPDATE_SIGNING_KEY.Trim()))
+          $rsa = [System.Security.Cryptography.RSA]::Create()
+          $rsa.FromXmlString($keyXml)
+          $sig = $rsa.SignHash($hash, [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+                               [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
+          [ordered]@{
+            version   = $tag.TrimStart('v')
+            url       = "https://github.com/${{ github.repository }}/releases/download/$tag/StreamRaid-$tag.zip"
+            sha256    = [Convert]::ToHexString($hash)
+            signature = [Convert]::ToBase64String($sig)
+          } | ConvertTo-Json | Set-Content out/latest.json -Encoding utf8NoBOM
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create '${{ github.ref_name }}' out/StreamRaid-*.zip out/latest.json `
+            --title 'StreamRaid ${{ github.ref_name }}' --generate-notes

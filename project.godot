@@ -5,6 +5,8 @@ config_version=5
 
 config/name="StreamRaid"
 config/description="配信者と視聴者で潜るダンジョン RPG(仮)"
+config/version="0.1.0"
+config/icon="res://icon.png"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 

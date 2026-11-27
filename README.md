@@ -2,6 +2,12 @@
 
 配信者が自分のアバターでダンジョンに潜り、視聴者がコメントで仲間・敵・ボスへの攻撃として参加するアクション RPG です(開発中)。
 
+## ダウンロード
+
+[Releases](../../releases/latest) から `StreamRaid-vX.Y.Z.zip` をダウンロードして展開し、`StreamRaid.exe` を起動してください(Windows 10 / 11)。
+新しいバージョンが出ると画面に表示され、F10 → その他 →「今すぐ更新」で更新できます(署名を確認した更新だけを適用します)。
+コード署名をしていないため、初回は「Windows によって PC が保護されました」と出ることがあります(「詳細情報」→「実行」)。
+
 ## 1 回の流れ
 
 1. **参加受付** — 「#参加 戦士 / 魔法使い / 僧侶」とコメントすると仲間になる
@@ -42,6 +48,8 @@ VRM にはアニメーションが入っていないので、立ち・歩き・�
 ## 開発
 
 - Godot 4.7(.NET 版)+ C#。`play.bat` で起動、`demo.bat` で自動デモ
+- `v*` のタグを push すると GitHub Actions が書き出して Releases に公開します(Secret: `UPDATE_SIGNING_KEY` = 更新署名用の RSA 秘密鍵 XML を base64 にしたもの)
+- アイコンは `tools/make-icon.ps1` で生成
 - `dotnet build` でビルド
 - 視聴者の記録は `user://viewers/<チャンネル>.json`、設定は `user://settings.json`(この PC の中だけ)
 - コメント取得だけの確認: `godot --headless --path . -- --chattest --yt=@チャンネル --tw=チャンネル --seconds=40`
