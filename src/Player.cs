@@ -92,6 +92,7 @@ public partial class Player : Unit
     {
         _atkCd = 0.3f;
         _avatar?.Attack();
+        Sfx.Play("slash", (float)GD.RandRange(0.9, 1.15));
         Fx.Swing(GlobalPosition, _facing, new Color("ffe066"));
         foreach (var u in Main.I.Units.ToArray())
         {

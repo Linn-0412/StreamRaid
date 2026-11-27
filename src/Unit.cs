@@ -72,6 +72,7 @@ public partial class Unit : CharacterBody3D
         if (Dead || Invuln > 0) return;
         Hp = Mathf.Max(0, Hp - amount);
         _flash = 0.12f;
+        if (Team == Team.Hero) Sfx.Play("hit", 0.8f);
         Fx.Popup(GlobalPosition + new Vector3(0, Height + 0.3f, 0), Mathf.RoundToInt(amount).ToString(),
                  Team == Team.Hero ? new Color("ff6b6b") : new Color("fff3a0"), Team == Team.Hero ? 40 : 48);
         Main.I.Credit(source, amount, this);

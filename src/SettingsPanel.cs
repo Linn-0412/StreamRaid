@@ -35,6 +35,8 @@ public partial class SettingsPanel : CanvasLayer
     TextEdit _blocked;
     // その他
     CheckButton _testKeys;
+    OptionButton _logCorner;
+    HSlider _sfx;
     Label _updateLabel;
     Button _applyUpdate;
 
@@ -192,6 +194,12 @@ public partial class SettingsPanel : CanvasLayer
         var box = Page("その他", out var root);
         _testKeys = Check("画面右上にテスト用キー(F1〜F6)の説明を出す");
         box.AddChild(_testKeys);
+        _logCorner = new OptionButton();
+        _logCorner.AddItem("左下", 0);
+        _logCorner.AddItem("右下", 1);
+        box.AddChild(Row("バトルログの位置", _logCorner, "配信者の立ち絵を置かない方を選んでください。左下・右下には番人の攻撃や予兆を出さないようにしています"));
+        _sfx = new HSlider { MinValue = 0, MaxValue = 100, Step = 5, CustomMinimumSize = new Vector2(320, 32) };
+        box.AddChild(Row("効果音の音量", _sfx, "番人の予兆は種類ごとに違う音が鳴ります(0 で消音)"));
         box.AddChild(Note("配信に映したくない場合はオフにしてください。キー自体はオフでも使えます。"));
 
         box.AddChild(Caption("バージョン・アップデート"));
@@ -278,6 +286,8 @@ public partial class SettingsPanel : CanvasLayer
         _blocked.Text = string.Join("\n", _s.BlockedUsers ?? Array.Empty<string>());
 
         _testKeys.ButtonPressed = _s.ShowTestKeys;
+        _logCorner.Selected = _s.LogOnRight ? 1 : 0;
+        _sfx.Value = _s.SfxVolume;
     }
 
     void Apply()
@@ -302,6 +312,8 @@ public partial class SettingsPanel : CanvasLayer
         _s.BlockedUsers = _blocked.Text.Split('\n').Select(x => x.Trim()).Where(x => x.Length > 0).Distinct().ToArray();
 
         _s.ShowTestKeys = _testKeys.ButtonPressed;
+        _s.LogOnRight = _logCorner.Selected == 1;
+        _s.SfxVolume = (int)_sfx.Value;
         _s.Save();
         Applied?.Invoke(_s);
         Show(false);

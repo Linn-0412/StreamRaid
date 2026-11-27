@@ -32,6 +32,10 @@ public class Settings
     // ---- その他
     /// <summary>画面右上のテスト用キーの説明を出すか。</summary>
     public bool ShowTestKeys { get; set; } = true;
+    /// <summary>バトルログを右下に出す(false なら左下)。立ち絵を置かない方を選ぶ。</summary>
+    public bool LogOnRight { get; set; } = false;
+    /// <summary>効果音の音量(0〜100)。</summary>
+    public int SfxVolume { get; set; } = 70;
 
     /// <summary>難しさに応じた敵の強さ(HP・攻撃力の倍率)。</summary>
     [System.Text.Json.Serialization.JsonIgnore]

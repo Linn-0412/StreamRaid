@@ -26,7 +26,8 @@ public partial class DialogueBox : CanvasLayer
         _panel.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
         _panel.GrowHorizontal = Control.GrowDirection.Both;
         _panel.GrowVertical = Control.GrowDirection.Begin;
-        _panel.OffsetLeft = -760; _panel.OffsetRight = 760; _panel.OffsetTop = -300; _panel.OffsetBottom = -40;
+        // 左下・右下(配信者の立ち絵の場所)にかからない幅にする
+        _panel.OffsetLeft = -560; _panel.OffsetRight = 560; _panel.OffsetTop = -330; _panel.OffsetBottom = -40;
         _panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
             BgColor = new Color(0.06f, 0.04f, 0.11f, 0.92f), BorderColor = new Color("ffe9a8"),
@@ -43,7 +44,7 @@ public partial class DialogueBox : CanvasLayer
         _text = new Label
         {
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
-            CustomMinimumSize = new Vector2(1440, 130),
+            CustomMinimumSize = new Vector2(1040, 160),
             LabelSettings = new LabelSettings { Font = Toon.Font, FontSize = 36, FontColor = Colors.White, OutlineSize = 8, OutlineColor = new Color(0.05f, 0.03f, 0.08f), LineSpacing = 6 },
         };
         box.AddChild(_text);

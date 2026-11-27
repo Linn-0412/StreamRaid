@@ -6,7 +6,8 @@ namespace StreamRaid;
 /// <summary>画面の文字(状態・ログ・パーティー・ボスの HP・結果発表)。</summary>
 public partial class Hud : CanvasLayer
 {
-    Label _top, _status, _hint, _banner, _party, _help, _bossName, _credit;
+    Label _top, _status, _hint, _banner, _party, _help, _bossName, _credit, _bossLine;
+    Tween _bossLineTween;
     VBoxContainer _log;
     ProgressBar _boss;
     PanelContainer _result;
@@ -36,13 +37,18 @@ public partial class Hud : CanvasLayer
 
         // 作者の表記(参加受付と結果発表のときだけ、右下に小さく)
         _credit = new Label { Text = Author.Credit, HorizontalAlignment = HorizontalAlignment.Right, LabelSettings = Ls(20, new Color(1, 1, 1, 0.75f), 6) };
-        _credit.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
-        _credit.OffsetLeft = -800; _credit.OffsetRight = -24; _credit.OffsetTop = -40; _credit.OffsetBottom = -12;
+        // 左下・右下は配信者の立ち絵を置く場所なので、下の中央に出す
+        _credit.HorizontalAlignment = HorizontalAlignment.Center;
+        _credit.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+        _credit.OffsetLeft = -500; _credit.OffsetRight = 500; _credit.OffsetTop = -34; _credit.OffsetBottom = -8;
         root.AddChild(_credit);
 
         _hint = new Label { LabelSettings = Ls(30, new Color("ffe9a8"), 10), HorizontalAlignment = HorizontalAlignment.Center };
         _hint.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-        _hint.OffsetLeft = -900; _hint.OffsetRight = 900; _hint.OffsetTop = -84; _hint.OffsetBottom = -36;
+        // 左下・右下(立ち絵の場所)にかからないよう、下の中央だけに収める
+        _hint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        _hint.LabelSettings.FontSize = 26;
+        _hint.OffsetLeft = -540; _hint.OffsetRight = 540; _hint.OffsetTop = -112; _hint.OffsetBottom = -40;
         root.AddChild(_hint);
 
         _banner = new Label { LabelSettings = Ls(84, new Color("fff3a0"), 18), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Modulate = Colors.Transparent };
@@ -76,6 +82,12 @@ public partial class Hud : CanvasLayer
         _bossName.OffsetLeft = -500; _bossName.OffsetRight = 500; _bossName.OffsetTop = 70; _bossName.OffsetBottom = 110;
         root.AddChild(_bossName);
 
+        // 番人のセリフ(予兆): HP バーのすぐ下に大きく出す
+        _bossLine = new Label { HorizontalAlignment = HorizontalAlignment.Center, LabelSettings = Ls(44, Colors.White, 14), Modulate = Colors.Transparent };
+        _bossLine.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
+        _bossLine.OffsetLeft = -600; _bossLine.OffsetRight = 600; _bossLine.OffsetTop = 156; _bossLine.OffsetBottom = 216;
+        root.AddChild(_bossLine);
+
         _boss = new ProgressBar { ShowPercentage = false, Visible = false, MaxValue = 1, Step = 0 };
         _boss.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         _boss.OffsetLeft = -500; _boss.OffsetRight = 500; _boss.OffsetTop = 116; _boss.OffsetBottom = 146;
@@ -104,6 +116,18 @@ public partial class Hud : CanvasLayer
     public void SetTop(string text) => _top.Text = text;
     public void ShowTestKeys(bool show) => _help.Visible = show;
     public void ShowCredit(bool show) => _credit.Visible = show;
+
+    /// <summary>バトルログを左下 / 右下のどちらに出すか(立ち絵のない方へ)。</summary>
+    public void SetLogCorner(bool right)
+    {
+        _log.SetAnchorsPreset(right ? Control.LayoutPreset.BottomRight : Control.LayoutPreset.BottomLeft);
+        if (right) { _log.OffsetLeft = -620; _log.OffsetRight = -28; }
+        else { _log.OffsetLeft = 28; _log.OffsetRight = 620; }
+        _log.OffsetTop = -420; _log.OffsetBottom = -100;
+        foreach (var c in _log.GetChildren()) if (c is Label l) l.HorizontalAlignment = right ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+        _logRight = right;
+    }
+    bool _logRight;
     public void SetStatus(string text) => _status.Text = text;
     public void SetHint(string text) => _hint.Text = text;
 
@@ -124,7 +148,7 @@ public partial class Hud : CanvasLayer
 
     public void Log(string text, Color? color = null)
     {
-        var l = new Label { Text = text, LabelSettings = Ls(26, color ?? Colors.White, 8) };
+        var l = new Label { Text = text, LabelSettings = Ls(26, color ?? Colors.White, 8), HorizontalAlignment = _logRight ? HorizontalAlignment.Right : HorizontalAlignment.Left };
         _log.AddChild(l);
         while (_log.GetChildCount() > 9) _log.GetChild(0).Free();
         var t = l.CreateTween();
@@ -134,6 +158,21 @@ public partial class Hud : CanvasLayer
     }
 
     public void SetParty(string text) => _party.Text = text;
+
+    /// <summary>番人のセリフ(予兆の合図)を HP バーの下に出す。</summary>
+    public void BossLine(string speaker, string text, Color color, float seconds)
+    {
+        _bossLine.Text = $"{speaker}「{text}」";
+        _bossLine.LabelSettings.FontColor = color;
+        _bossLineTween?.Kill();
+        _bossLine.Modulate = Colors.White;
+        _bossLine.Scale = Vector2.One * 1.1f;
+        _bossLine.PivotOffset = _bossLine.Size / 2;
+        _bossLineTween = CreateTween();
+        _bossLineTween.TweenProperty(_bossLine, "scale", Vector2.One, 0.15);
+        _bossLineTween.TweenInterval(seconds);
+        _bossLineTween.TweenProperty(_bossLine, "modulate:a", 0f, 0.3);
+    }
 
     /// <summary>エンディングのスタッフロール。参加してくれた人の名前を下から上へ流し、終わったら done。</summary>
     public void Credits(string title, System.Collections.Generic.IList<string> names, System.Action done)

@@ -139,6 +139,9 @@ public partial class Main : Node3D
         }
 
         Hud.ShowTestKeys(Cfg.ShowTestKeys);
+        Hud.SetLogCorner(Cfg.LogOnRight);
+        Sfx.Init(this);
+        Sfx.Volume = Cfg.SfxVolume;
         EnterLobby();
         // 開発用: --credits-test でエンディングのスタッフロールだけを流す
         if (OS.GetCmdlineUserArgs().Contains("--credits-test"))
@@ -238,6 +241,8 @@ public partial class Main : Node3D
     {
         _hub.Apply(s);
         Hud.ShowTestKeys(s.ShowTestKeys);
+        Hud.SetLogCorner(s.LogOnRight);
+        Sfx.Volume = s.SfxVolume;
         if (Player != null && IsInstanceValid(Player)) Player.Rename(s.StreamerName);
         // アバターが変わったら配信者を作り直す(同じ場所・同じ HP で)
         if (Player != null && IsInstanceValid(Player) && (s.AvatarPath ?? "") != (_avatarCachePath ?? "") && _avatarOverride == null)
@@ -385,6 +390,7 @@ public partial class Main : Node3D
         {
             if (!IsInstanceValid(boss) || boss.Dead) return;
             boss.Active = true;
+            Sfx.Play("roar");
             Hud.Banner($"{def.Name}  戦闘開始!", 1.6f, new Color("ff8f8f"));
         });
     }
@@ -414,6 +420,7 @@ public partial class Main : Node3D
             if (Player != null && IsInstanceValid(Player)) Player.Revive(0.5f);
             _portal = Dungeon.Portal(Level, new Vector3(0, 0, -_map.Half + 3));
             Hud.Banner("番人を倒した!", 1.6f);
+            Sfx.Play("clear");
         });
     }
 
@@ -745,6 +752,7 @@ public partial class Main : Node3D
             var p = new Vector3(_rng.RandfRange(-h, h), 0, _rng.RandfRange(-h, h));
             if (_map.Blocked.Any(b => b.DistanceTo(p) < 1.8f)) continue;
             if (Player != null && IsInstanceValid(Player) && Unit.Flat(Player.GlobalPosition - p).Length() < awayFromPlayer) continue;
+            if (InStreamerCorner(p)) continue;
             return p;
         }
         return new Vector3(0, 0, -h);
@@ -789,6 +797,20 @@ public partial class Main : Node3D
     }
 
     public void Shake(float amount) => _cam.Shake(amount);
+
+    /// <summary>
+    /// 配信画面の左下・右下(VTuber の立ち絵を置く場所)に映る位置なら true。
+    /// 番人の攻撃・予兆や召喚した敵は、ここに出さないようにする。
+    /// </summary>
+    public bool InStreamerCorner(Vector3 world)
+    {
+        var cam = GetViewport().GetCamera3D();
+        if (cam == null || cam.IsPositionBehind(world)) return false;
+        var p = cam.UnprojectPosition(world);
+        var size = GetViewport().GetVisibleRect().Size;
+        float x = p.X / size.X, y = p.Y / size.Y;
+        return y > 0.6f && (x < 0.24f || x > 0.76f);
+    }
 
     void UpdatePartyText()
     {
