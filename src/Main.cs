@@ -90,6 +90,7 @@ public partial class Main : Node3D
             if (a.StartsWith("--avatar=")) _avatarOverride = a["--avatar=".Length..]; // 開発用
         Cfg = demo ? new Settings() : Settings.Load();
         if (demo) { Cfg.LobbySeconds = 5; Cfg.FloorCount = 10; Seed(7); }
+        if (OS.GetCmdlineUserArgs().Contains("--clean")) Cfg.ShowTestKeys = false; // 開発用: 紹介動画の録画用(テスト用キーの説明を隠す)
         else _rng.Randomize();
         foreach (var a in OS.GetCmdlineUserArgs())
             if (a.StartsWith("--start-floor=") && int.TryParse(a["--start-floor=".Length..], out var sf)) _devStart = sf; // 開発用
@@ -332,7 +333,7 @@ public partial class Main : Node3D
     void NextFloor()
     {
         _floor++;
-        GD.Print($"[tower] floor {_floor} / {_top}");
+        GD.Print($"[tower] floor {_floor} / {_top} frame={Engine.GetFramesDrawn()}");
         ClearMonstersAndLevel();
         _boss = null;
         Hud.BossBar(null);
